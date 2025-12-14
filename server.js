@@ -190,9 +190,14 @@ app.post('/api/register', async (req, res) => {
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
         // Первый пользователь - админ (warning: change for prod)
-        const { count } = await supabase
+        const { count, error: countError } = await supabase
             .from('users')
-            .select('*', { count: 'exact' });
+            .select('*', { count: 'exact', head: true });
+            
+        if (countError) {
+            console.error('Error counting users:', countError);
+            throw countError;
+        }
             
         const isAdmin = count === 0;
 
@@ -235,7 +240,17 @@ app.post('/api/register', async (req, res) => {
 
     } catch (error) {
         console.error('Registration error:', error);
-        res.status(500).json({ error: 'Ошибка регистрации' });
+        const errorDetails = {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+        };
+        console.error('Registration error details:', errorDetails);
+        res.status(500).json({ 
+            error: 'Ошибка регистрации',
+            details: errorDetails
+        });
     }
 });
 
@@ -295,7 +310,17 @@ app.post('/api/login', async (req, res) => {
 
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ error: 'Ошибка входа' });
+        const errorDetails = {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+        };
+        console.error('Login error details:', errorDetails);
+        res.status(500).json({ 
+            error: 'Ошибка входа',
+            details: errorDetails
+        });
     }
 });
 
@@ -879,16 +904,17 @@ app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req
 
     } catch (error) {
         console.error('Create product error:', error);
-        console.error('Error details:', {
+        const errorDetails = {
             message: error.message,
             code: error.code,
             details: error.details,
             hint: error.hint,
             productData: productData
-        });
+        };
+        console.error('Error details:', errorDetails);
         res.status(500).json({ 
             error: 'Ошибка создания товара',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            details: errorDetails
         });
     }
 });

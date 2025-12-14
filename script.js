@@ -76,12 +76,17 @@ async function safeFetch(url, options = {}) {
                 const errorData = await response.json();
                 errorMessage = errorData.error || errorData.message || errorMessage;
                 errorDetails = errorData.details || errorData;
+                
                 // Логируем полную информацию об ошибке для отладки
-                console.error(`[safeFetch] Error ${response.status} for ${url}:`, {
-                    message: errorMessage,
-                    details: errorDetails,
-                    fullResponse: errorData
-                });
+                console.error(`[safeFetch] Error ${response.status} for ${url}:`, errorMessage);
+                if (errorDetails) {
+                    console.error('[safeFetch] Error details:', errorDetails);
+                    // Если details - это объект, логируем его свойства отдельно
+                    if (typeof errorDetails === 'object' && errorDetails !== null) {
+                        console.error('[safeFetch] Error details expanded:', JSON.stringify(errorDetails, null, 2));
+                    }
+                }
+                console.error('[safeFetch] Full error response:', errorData);
             } catch (e) {
                 // Если не удалось распарсить JSON, используем статус
                 if (response.status === 401) errorMessage = 'Требуется авторизация';
@@ -91,8 +96,16 @@ async function safeFetch(url, options = {}) {
                 console.error(`[safeFetch] Error ${response.status} for ${url}:`, errorMessage, e);
             }
             // Добавляем детали к сообщению об ошибке, если они есть
-            if (errorDetails && typeof errorDetails === 'string') {
-                errorMessage += `: ${errorDetails}`;
+            if (errorDetails) {
+                if (typeof errorDetails === 'string') {
+                    errorMessage += `: ${errorDetails}`;
+                } else if (typeof errorDetails === 'object' && errorDetails !== null) {
+                    // Пытаемся извлечь полезную информацию из объекта
+                    const detailStr = errorDetails.message || errorDetails.error || JSON.stringify(errorDetails);
+                    if (detailStr && detailStr.length < 200) {
+                        errorMessage += `: ${detailStr}`;
+                    }
+                }
             }
             throw new Error(errorMessage);
         }
@@ -2471,13 +2484,22 @@ class NeonShop {
 
     async register(username, email, password, fullName) {
         try {
+            const registerData = { username, email, password, fullName };
+            console.log('Registering user with data:', {
+                username,
+                email,
+                password: password ? `[${password.length} chars]` : null,
+                fullName
+            });
+            
             const response = await safeFetch(`${this.API_BASE_URL}/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password, fullName })
+                body: JSON.stringify(registerData)
             });
 
             const data = await response.json();
+            console.log('Registration successful:', data);
 
             this.user = data.user;
             this.token = data.token;
@@ -2499,7 +2521,12 @@ class NeonShop {
             return true;
 
         } catch (error) {
-            this.showToast(error.message, 'error');
+            console.error('Registration error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack
+            });
+            this.showToast(error.message || 'Ошибка регистрации', 'error');
             return false;
         }
     }
