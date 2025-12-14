@@ -547,6 +547,7 @@ button:focus-visible {
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    margin-top: 30px;
 }
 
 .auth-subtitle {
@@ -655,7 +656,7 @@ button:focus-visible {
 .auth-switch {
     text-align: center;
     margin-top: 25px;
-    padding-top: 20px;
+    padding-top: 10px;
     border-top: 1px solid var(--border-color);
 }
 
@@ -823,7 +824,8 @@ button:focus-visible {
     
     .input-group label {
         font-size: 0.9rem;
-        margin-bottom: 1px;
+        margin-bottom: 0px;
+        margin-top: 15px;
     }
     
     .auth-form input {
