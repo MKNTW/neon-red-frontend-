@@ -150,7 +150,8 @@ export class CartModule {
             removeOneBtn.textContent = '−';
             
             const quantitySpan = document.createElement('span');
-            quantitySpan.style.cssText = 'min-width:30px; text-align:center; font-weight:bold;';
+            quantitySpan.className = 'cart-quantity-display';
+            quantitySpan.style.cssText = 'min-width:35px; text-align:center; font-weight:bold; font-size:1.1rem; color:var(--neon-red); padding:0 8px;';
             quantitySpan.textContent = item.quantity;
             
             const addOneBtn = document.createElement('button');

@@ -502,21 +502,45 @@
                 </div>
             </div>
 
+            <!-- Форма ввода пароля для выбора аккаунта -->
+            <div id="verify-password-form" class="auth-form" style="display: none;">
+                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Найдено несколько аккаунтов с этим email. Введите пароль для выбора аккаунта:</p>
+                <div class="input-group">
+                    <label for="verify-password">Пароль</label>
+                    <input type="password" id="verify-password" placeholder="Введите пароль" required autocomplete="current-password">
+                    <div class="input-error" id="verify-password-error"></div>
+                </div>
+                <button type="button" class="auth-btn primary-btn" onclick="shop.verifyPasswordForReset()">Продолжить</button>
+                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToForgotPassword()" style="margin-top: 10px;">Назад</button>
+            </div>
+
             <!-- Форма выбора аккаунта -->
             <div id="select-account-form" class="auth-form" style="display: none;">
-                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Найдено несколько аккаунтов с этим email. Выберите аккаунт:</p>
+                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Выберите аккаунт для восстановления пароля:</p>
                 <div id="accounts-list" style="margin-bottom: 20px;"></div>
-                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToForgotPassword()">Назад</button>
+                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToVerifyPassword()">Назад</button>
+            </div>
+
+            <!-- Форма подтверждения кода -->
+            <div id="verify-code-form" class="auth-form" style="display: none;">
+                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Код подтверждения отправлен на <strong id="reset-email-display" style="color: #ff0033;"></strong></p>
+                <div class="input-group">
+                    <label for="reset-code">Код подтверждения</label>
+                    <input type="text" id="reset-code" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code">
+                    <div class="input-error" id="reset-code-error"></div>
+                </div>
+                <button type="button" class="auth-btn primary-btn" onclick="shop.verifyResetCode()">Подтвердить код</button>
+                <div class="email-resend-container" style="margin-top: 15px;">
+                    <button type="button" id="resend-reset-code-btn" class="profile-resend-btn" onclick="shop.resendResetCode()">
+                        <span>↻</span> Отправить код заново
+                    </button>
+                </div>
+                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToSelectAccount()" style="margin-top: 10px;">Назад</button>
             </div>
 
             <!-- Форма смены пароля -->
             <div id="reset-password-form" class="auth-form" style="display: none;">
-                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Код подтверждения отправлен на <strong id="reset-email-display" style="color: #ff0033;"></strong></p>
-                <div class="input-group">
-                    <label for="reset-code">Код подтверждения</label>
-                    <input type="text" id="reset-code" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" style="font-size: 18px;">
-                    <div class="input-error" id="reset-code-error"></div>
-                </div>
+                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Введите новый пароль для аккаунта <strong id="reset-username-display" style="color: #ff0033;"></strong></p>
                 <div class="input-group">
                     <label for="reset-password">Новый пароль</label>
                     <input type="password" id="reset-password" placeholder="Введите новый пароль (минимум 6 символов)" required autocomplete="new-password">
@@ -528,11 +552,7 @@
                     <div class="input-error" id="reset-password-error"></div>
                 </div>
                 <button type="button" class="auth-btn primary-btn" onclick="shop.confirmPasswordReset()">Изменить пароль</button>
-                <div class="email-resend-container" style="margin-top: 15px;">
-                    <button type="button" id="resend-reset-code-btn" class="profile-resend-btn" onclick="shop.resendResetCode()">
-                        <span>↻</span> Отправить код заново
-                    </button>
-                </div>
+                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToVerifyCode()" style="margin-top: 10px;">Назад</button>
                 <div class="auth-switch">
                     <p><a href="#" onclick="shop.closeForgotPasswordModal(); openAuthModal(); showLoginForm();">Вернуться к входу</a></p>
                 </div>

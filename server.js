@@ -1490,16 +1490,24 @@ app.post('/api/reset-password', async (req, res) => {
     try {
         const { email, userId, code, password } = req.body;
         
-        if (!email || !userId || !code || !password) {
-            return res.status(400).json({ error: 'Требуются email, userId, код и пароль' });
+        if (!email || !userId || !code) {
+            return res.status(400).json({ error: 'Требуются email, userId и код' });
         }
         
         const cleanEmail = email.trim().toLowerCase();
         const cleanCode = code.trim();
         
-        // Валидация пароля
-        if (typeof password !== 'string' || password.length < 6 || password.length > 100) {
-            return res.status(400).json({ error: 'Пароль должен быть от 6 до 100 символов' });
+        // Если пароль = 'VERIFY_CODE_ONLY_TEMP', только проверяем код
+        const isCodeVerificationOnly = password === 'VERIFY_CODE_ONLY_TEMP';
+        
+        // Валидация пароля (если не только проверка кода)
+        if (!isCodeVerificationOnly) {
+            if (!password) {
+                return res.status(400).json({ error: 'Требуется пароль' });
+            }
+            if (typeof password !== 'string' || password.length < 6 || password.length > 100) {
+                return res.status(400).json({ error: 'Пароль должен быть от 6 до 100 символов' });
+            }
         }
         
         // Находим код подтверждения
@@ -1523,6 +1531,14 @@ app.post('/api/reset-password', async (req, res) => {
         const valid = await bcrypt.compare(cleanCode, record.code_hash);
         if (!valid) {
             return res.status(400).json({ error: 'Неверный код' });
+        }
+        
+        // Если только проверка кода - возвращаем success
+        if (isCodeVerificationOnly) {
+            return res.json({
+                success: true,
+                message: 'Код подтверждён'
+            });
         }
         
         // Обновляем пароль

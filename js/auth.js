@@ -21,6 +21,9 @@ export class AuthModule {
         this.isConfirmingCode = false;
         this.pendingResetEmail = null;
         this.pendingResetUserId = null;
+        this.pendingResetAccounts = null;
+        this.verifiedPassword = null;
+        this.verifiedResetCode = null;
         this.resendResetTimer = null;
     }
 
@@ -301,8 +304,13 @@ export class AuthModule {
             await this.registerUserWithoutPassword();
             return;
         } else if (currentStep === 4) {
+            // Шаг 4 - полное имя (необязательно)
             const fullName = document.getElementById('register-fullname')?.value.trim();
-            this.registerData.fullName = fullName;
+            this.registerData.fullName = fullName || '';
+            // Переходим на шаг 5 (пароль)
+            this.currentRegisterStep = 5;
+            this.updateRegisterStepDisplay();
+            return;
         } else if (currentStep === 5) {
             const password = document.getElementById('register-password')?.value;
             const password2 = document.getElementById('register-password2')?.value;
@@ -405,8 +413,23 @@ export class AuthModule {
                 })
             });
 
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                hideLoadingIndicator();
+                console.error('[completeRegistrationWithPassword] Error parsing response:', parseError);
+                showToast('Ошибка обработки ответа сервера', 'error');
+                return false;
+            }
+            
             hideLoadingIndicator();
+
+            if (!response.ok) {
+                const errorMsg = data?.error || data?.message || 'Ошибка завершения регистрации';
+                showToast(errorMsg, 'error');
+                return false;
+            }
 
             if (data.user) {
                 this.shop.user = data.user;
@@ -554,11 +577,14 @@ export class AuthModule {
         const steps = document.querySelectorAll('.register-step');
         const currentStep = this.currentRegisterStep || 1;
         
-        steps.forEach((step, index) => {
-            const stepNum = index + 1;
+        console.log('[updateRegisterStepDisplay] Current step:', currentStep, 'Total steps:', steps.length);
+        
+        steps.forEach((step) => {
+            const stepNum = parseInt(step.dataset.step) || 0;
             if (stepNum === currentStep) {
                 step.classList.add('active');
                 step.style.display = 'flex';
+                console.log('[updateRegisterStepDisplay] Showing step:', stepNum);
             } else {
                 step.classList.remove('active');
                 step.style.display = 'none';
@@ -566,6 +592,22 @@ export class AuthModule {
         });
         
         this.updateStepIndicator();
+        
+        // Проверяем, что шаг действительно отображается
+        const activeStep = document.querySelector('.register-step.active');
+        if (!activeStep || parseInt(activeStep.dataset.step) !== currentStep) {
+            console.error('[updateRegisterStepDisplay] Step display mismatch! Expected:', currentStep, 'Got:', activeStep?.dataset.step);
+            // Принудительно показываем нужный шаг
+            const targetStep = document.querySelector(`.register-step[data-step="${currentStep}"]`);
+            if (targetStep) {
+                steps.forEach(s => {
+                    s.classList.remove('active');
+                    s.style.display = 'none';
+                });
+                targetStep.classList.add('active');
+                targetStep.style.display = 'flex';
+            }
+        }
     }
     
     updateStepIndicator() {
@@ -652,8 +694,28 @@ export class AuthModule {
                 })
             });
 
-            const data = await response.json();
+            if (!response) {
+                hideLoadingIndicator();
+                showToast('Ошибка: нет ответа от сервера', 'error');
+                this.isConfirmingCode = false;
+                return false;
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                hideLoadingIndicator();
+                console.error('[confirmEmailCode] Error parsing response:', parseError);
+                showToast('Ошибка обработки ответа сервера', 'error');
+                this.isConfirmingCode = false;
+                return false;
+            }
+            
             hideLoadingIndicator();
+            
+            console.log('[confirmEmailCode] Response status:', response.status);
+            console.log('[confirmEmailCode] Response data:', data);
 
             if (!response.ok) {
                 const errorMsg = data?.error || data?.message || 'Ошибка подтверждения';
@@ -666,34 +728,82 @@ export class AuthModule {
                 return false;
             }
 
-            if (data.success) {
-                if (data.token && data.user) {
-                    this.pendingRegistrationToken = data.token;
-                    this.pendingRegistrationUser = data.user;
-                    
-                    this.currentRegisterStep = 4;
-                    this.updateRegisterStepDisplay();
-                    
-                    showToast('Email подтверждён! Завершите регистрацию', 'success');
-                    
-                    if (codeInput) {
-                        codeInput.value = '';
-                    }
-                } else {
-                    showToast('Email успешно подтверждён! Теперь можно войти', 'success');
-                    if (window.showLoginForm) window.showLoginForm();
+            // Проверяем успешный ответ - либо data.success, либо наличие token и user
+            const isSuccess = data.success || (data.token && data.user);
+            
+            if (isSuccess && data.token && data.user) {
+                // Сохраняем токен и данные пользователя для завершения регистрации
+                this.pendingRegistrationToken = data.token;
+                this.pendingRegistrationUser = {
+                    id: data.user.id,
+                    username: data.user.username,
+                    email: data.user.email,
+                    fullName: data.user.fullName || data.user.full_name || null,
+                    isAdmin: data.user.isAdmin || data.user.is_admin || false,
+                    emailVerified: data.user.emailVerified !== false && data.user.email_verified !== false
+                };
+                
+                console.log('[confirmEmailCode] Saved registration data:', {
+                    hasToken: !!this.pendingRegistrationToken,
+                    hasUser: !!this.pendingRegistrationUser,
+                    userId: this.pendingRegistrationUser?.id,
+                    username: this.pendingRegistrationUser?.username
+                });
+                
+                // Проверяем, что данные сохранились
+                if (!this.pendingRegistrationToken || !this.pendingRegistrationUser) {
+                    console.error('[confirmEmailCode] Failed to save registration data');
+                    showToast('Ошибка: не удалось сохранить данные регистрации', 'error');
+                    this.isConfirmingCode = false;
+                    return false;
                 }
                 
+                // Переходим на шаг 4 (ввод полного имени)
+                this.currentRegisterStep = 4;
+                this.updateRegisterStepDisplay();
+                
+                // Проверяем, что шаг переключился
+                setTimeout(() => {
+                    const currentStepEl = document.querySelector('.register-step.active');
+                    if (!currentStepEl || currentStepEl.dataset.step !== '4') {
+                        console.error('[confirmEmailCode] Step transition failed, forcing update');
+                        this.updateRegisterStepDisplay();
+                    }
+                }, 100);
+                
+                showToast('Email подтверждён! Завершите регистрацию', 'success');
+                
+                // Очищаем поле кода
+                if (codeInput) {
+                    codeInput.value = '';
+                }
+                
+                // Очищаем таймер
                 if (this.resendCodeTimer) {
                     clearInterval(this.resendCodeTimer);
                     this.resendCodeTimer = null;
                 }
                 
-                this.pendingVerificationEmail = null;
+                // НЕ очищаем pendingVerificationEmail - он может понадобиться
                 this.isConfirmingCode = false;
                 
                 return true;
+            } else if (isSuccess && !data.token) {
+                // Email подтверждён, но нет токена - значит пользователь уже зарегистрирован
+                showToast('Email успешно подтверждён! Теперь можно войти', 'success');
+                this.pendingVerificationEmail = null;
+                this.isConfirmingCode = false;
+                
+                // Сбрасываем регистрацию
+                this.setupRegisterSteps();
+                this.updateRegisterStepDisplay();
+                
+                if (window.showLoginForm) {
+                    window.showLoginForm();
+                }
+                return true;
             } else {
+                // Ошибка подтверждения
                 const errorMsg = data.error || data.message || 'Ошибка подтверждения';
                 showToast(errorMsg, 'error');
                 if (codeError) {
@@ -842,11 +952,15 @@ export class AuthModule {
     
     resetForgotPasswordForms() {
         const forgotForm = document.getElementById('forgot-password-form');
+        const verifyPasswordForm = document.getElementById('verify-password-form');
         const selectForm = document.getElementById('select-account-form');
+        const verifyCodeForm = document.getElementById('verify-code-form');
         const resetForm = document.getElementById('reset-password-form');
         
         if (forgotForm) forgotForm.style.display = 'block';
+        if (verifyPasswordForm) verifyPasswordForm.style.display = 'none';
         if (selectForm) selectForm.style.display = 'none';
+        if (verifyCodeForm) verifyCodeForm.style.display = 'none';
         if (resetForm) resetForm.style.display = 'none';
         
         const title = document.getElementById('forgot-password-title');
@@ -859,16 +973,18 @@ export class AuthModule {
     
     resetForgotPasswordData() {
         const emailInput = document.getElementById('forgot-email');
+        const verifyPasswordInput = document.getElementById('verify-password');
         const codeInput = document.getElementById('reset-code');
         const passwordInput = document.getElementById('reset-password');
         const password2Input = document.getElementById('reset-password2');
         
         if (emailInput) emailInput.value = '';
+        if (verifyPasswordInput) verifyPasswordInput.value = '';
         if (codeInput) codeInput.value = '';
         if (passwordInput) passwordInput.value = '';
         if (password2Input) password2Input.value = '';
         
-        const errorEls = ['forgot-email-error', 'reset-code-error', 'reset-password-error'];
+        const errorEls = ['forgot-email-error', 'verify-password-error', 'reset-code-error', 'reset-password-error'];
         errorEls.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -879,6 +995,8 @@ export class AuthModule {
         
         this.pendingResetEmail = null;
         this.pendingResetUserId = null;
+        this.pendingResetAccounts = null;
+        this.verifiedPassword = null;
         
         if (this.resendResetTimer) {
             clearInterval(this.resendResetTimer);
@@ -948,23 +1066,26 @@ export class AuthModule {
                 return false;
             }
             
+            // Если несколько аккаунтов - показываем форму ввода пароля
             if (data.accounts && data.accounts.length > 1) {
                 this.pendingResetEmail = email.toLowerCase();
-                this.showAccountSelection(data.accounts);
+                this.pendingResetAccounts = data.accounts;
+                this.showVerifyPasswordForm();
                 return true;
             }
             
+            // Если один аккаунт - сразу отправляем код
             if (data.success || data.accounts?.length === 1) {
                 this.pendingResetEmail = email.toLowerCase();
                 this.pendingResetUserId = data.accounts?.[0]?.id || data.userId;
-                this.showResetPasswordForm();
+                this.showVerifyCodeForm();
                 return true;
             }
             
             if (data.success && data.userId) {
                 this.pendingResetEmail = email.toLowerCase();
                 this.pendingResetUserId = data.userId;
-                this.showResetPasswordForm();
+                this.showVerifyCodeForm();
                 return true;
             }
             
@@ -981,18 +1102,132 @@ export class AuthModule {
         }
     }
     
-    showAccountSelection(accounts) {
+    showVerifyPasswordForm() {
         const forgotForm = document.getElementById('forgot-password-form');
+        const verifyPasswordForm = document.getElementById('verify-password-form');
         const selectForm = document.getElementById('select-account-form');
+        const verifyCodeForm = document.getElementById('verify-code-form');
         const resetForm = document.getElementById('reset-password-form');
         const title = document.getElementById('forgot-password-title');
         const subtitle = document.getElementById('forgot-password-subtitle');
         
         if (forgotForm) forgotForm.style.display = 'none';
+        if (verifyPasswordForm) verifyPasswordForm.style.display = 'block';
+        if (selectForm) selectForm.style.display = 'none';
+        if (verifyCodeForm) verifyCodeForm.style.display = 'none';
+        if (resetForm) resetForm.style.display = 'none';
+        if (title) title.textContent = 'Введите пароль';
+        if (subtitle) subtitle.textContent = 'Для выбора аккаунта введите пароль';
+        
+        const passwordInput = document.getElementById('verify-password');
+        if (passwordInput) {
+            passwordInput.value = '';
+            setTimeout(() => passwordInput.focus(), 100);
+        }
+    }
+    
+    async verifyPasswordForReset() {
+        const passwordInput = document.getElementById('verify-password');
+        const errorEl = document.getElementById('verify-password-error');
+        
+        if (!passwordInput) {
+            showToast('Ошибка: поле ввода пароля не найдено', 'error');
+            return false;
+        }
+        
+        const password = passwordInput.value;
+        
+        if (!password) {
+            if (errorEl) {
+                errorEl.textContent = 'Введите пароль';
+                errorEl.style.display = 'block';
+            }
+            showToast('Введите пароль', 'error');
+            return false;
+        }
+        
+        if (!this.pendingResetAccounts || this.pendingResetAccounts.length === 0) {
+            showToast('Ошибка: аккаунты не найдены', 'error');
+            return false;
+        }
+        
+        try {
+            showLoadingIndicator();
+            
+            // Проверяем пароль для каждого аккаунта
+            const matchedAccounts = [];
+            for (const account of this.pendingResetAccounts) {
+                try {
+                    const response = await safeFetch(`${this.shop.API_BASE_URL}/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: account.username,
+                            password: password
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        matchedAccounts.push(account);
+                    }
+                } catch (e) {
+                    // Пароль не подходит для этого аккаунта
+                }
+            }
+            
+            hideLoadingIndicator();
+            
+            if (matchedAccounts.length === 0) {
+                if (errorEl) {
+                    errorEl.textContent = 'Неверный пароль';
+                    errorEl.style.display = 'block';
+                }
+                showToast('Неверный пароль', 'error');
+                return false;
+            }
+            
+            if (errorEl) {
+                errorEl.textContent = '';
+                errorEl.style.display = 'none';
+            }
+            
+            this.verifiedPassword = password;
+            
+            // Если один аккаунт - сразу отправляем код
+            if (matchedAccounts.length === 1) {
+                this.pendingResetUserId = matchedAccounts[0].id;
+                this.showVerifyCodeForm();
+                return true;
+            }
+            
+            // Если несколько - показываем выбор
+            this.pendingResetAccounts = matchedAccounts;
+            this.showAccountSelection(matchedAccounts);
+            return true;
+            
+        } catch (error) {
+            hideLoadingIndicator();
+            showToast('Ошибка проверки пароля', 'error');
+            return false;
+        }
+    }
+    
+    showAccountSelection(accounts) {
+        const forgotForm = document.getElementById('forgot-password-form');
+        const verifyPasswordForm = document.getElementById('verify-password-form');
+        const selectForm = document.getElementById('select-account-form');
+        const verifyCodeForm = document.getElementById('verify-code-form');
+        const resetForm = document.getElementById('reset-password-form');
+        const title = document.getElementById('forgot-password-title');
+        const subtitle = document.getElementById('forgot-password-subtitle');
+        
+        if (forgotForm) forgotForm.style.display = 'none';
+        if (verifyPasswordForm) verifyPasswordForm.style.display = 'none';
         if (selectForm) selectForm.style.display = 'block';
+        if (verifyCodeForm) verifyCodeForm.style.display = 'none';
         if (resetForm) resetForm.style.display = 'none';
         if (title) title.textContent = 'Выберите аккаунт';
-        if (subtitle) subtitle.textContent = 'Найдено несколько аккаунтов';
+        if (subtitle) subtitle.textContent = 'Выберите аккаунт для восстановления пароля';
         
         const accountsList = document.getElementById('accounts-list');
         if (!accountsList) return;
@@ -1008,7 +1243,7 @@ export class AuthModule {
             `;
             accountDiv.addEventListener('click', () => {
                 this.pendingResetUserId = account.id;
-                this.showResetPasswordForm();
+                this.showVerifyCodeForm();
             });
             accountDiv.addEventListener('mouseenter', () => {
                 accountDiv.style.borderColor = 'var(--neon-red)';
@@ -1026,18 +1261,65 @@ export class AuthModule {
         this.resetForgotPasswordForms();
     }
     
-    showResetPasswordForm() {
+    backToVerifyPassword() {
+        this.showVerifyPasswordForm();
+    }
+    
+    async showVerifyCodeForm() {
+        if (!this.pendingResetEmail || !this.pendingResetUserId) {
+            showToast('Ошибка: данные не найдены', 'error');
+            return;
+        }
+        
+        // Отправляем код
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.shop.API_BASE_URL}/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    email: this.pendingResetEmail,
+                    userId: this.pendingResetUserId
+                })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                const errorMsg = data?.error || data?.message || 'Ошибка отправки кода';
+                showToast(errorMsg, 'error');
+                return;
+            }
+            
+            if (!data.success) {
+                showToast('Ошибка отправки кода', 'error');
+                return;
+            }
+            
+            showToast('Код подтверждения отправлен на email', 'success');
+            
+        } catch (error) {
+            hideLoadingIndicator();
+            showToast('Ошибка отправки кода', 'error');
+            return;
+        }
+        
         const forgotForm = document.getElementById('forgot-password-form');
+        const verifyPasswordForm = document.getElementById('verify-password-form');
         const selectForm = document.getElementById('select-account-form');
+        const verifyCodeForm = document.getElementById('verify-code-form');
         const resetForm = document.getElementById('reset-password-form');
         const title = document.getElementById('forgot-password-title');
         const subtitle = document.getElementById('forgot-password-subtitle');
         
         if (forgotForm) forgotForm.style.display = 'none';
+        if (verifyPasswordForm) verifyPasswordForm.style.display = 'none';
         if (selectForm) selectForm.style.display = 'none';
-        if (resetForm) resetForm.style.display = 'block';
-        if (title) title.textContent = 'Смена пароля';
-        if (subtitle) subtitle.textContent = 'Введите код и новый пароль';
+        if (verifyCodeForm) verifyCodeForm.style.display = 'block';
+        if (resetForm) resetForm.style.display = 'none';
+        if (title) title.textContent = 'Подтверждение кода';
+        if (subtitle) subtitle.textContent = 'Введите код из email';
         
         const emailDisplay = document.getElementById('reset-email-display');
         if (emailDisplay && this.pendingResetEmail) {
@@ -1045,47 +1327,36 @@ export class AuthModule {
         }
         
         const codeInput = document.getElementById('reset-code');
-        const passwordInput = document.getElementById('reset-password');
-        const password2Input = document.getElementById('reset-password2');
-        if (codeInput) codeInput.value = '';
-        if (passwordInput) passwordInput.value = '';
-        if (password2Input) password2Input.value = '';
+        if (codeInput) {
+            codeInput.value = '';
+            setTimeout(() => codeInput.focus(), 100);
+        }
         
         const codeError = document.getElementById('reset-code-error');
-        const passwordError = document.getElementById('reset-password-error');
         if (codeError) {
             codeError.textContent = '';
             codeError.style.display = 'none';
-        }
-        if (passwordError) {
-            passwordError.textContent = '';
-            passwordError.style.display = 'none';
         }
         
         this.startResendResetTimer();
     }
     
-    async confirmPasswordReset() {
+    async verifyResetCode() {
         const codeInput = document.getElementById('reset-code');
-        const passwordInput = document.getElementById('reset-password');
-        const password2Input = document.getElementById('reset-password2');
         const codeError = document.getElementById('reset-code-error');
-        const passwordError = document.getElementById('reset-password-error');
         
-        if (!codeInput || !passwordInput || !password2Input) {
-            showToast('Ошибка: поля не найдены', 'error');
+        if (!codeInput) {
+            showToast('Ошибка: поле ввода кода не найдено', 'error');
             return false;
         }
         
         if (!this.pendingResetEmail || !this.pendingResetUserId) {
             showToast('Ошибка: данные не найдены. Начните заново', 'error');
-            this.openForgotPasswordModal();
+            this.resetForgotPasswordForms();
             return false;
         }
         
         const code = codeInput.value.trim();
-        const password = passwordInput.value;
-        const password2 = password2Input.value;
         
         if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
             if (codeError) {
@@ -1093,6 +1364,151 @@ export class AuthModule {
                 codeError.style.display = 'block';
             }
             showToast('Введите 6-значный код', 'error');
+            return false;
+        }
+        
+        try {
+            showLoadingIndicator();
+            
+            // Проверяем код через отдельный endpoint или через проверку кода
+            const { data: record } = await supabase
+                .from('email_verifications')
+                .select('*')
+                .eq('user_id', this.pendingResetUserId)
+                .eq('email', this.pendingResetEmail)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            
+            // Проверяем код через API reset-password с временным паролем
+            // Сервер проверит код и вернет success, если код верный
+            const response = await safeFetch(`${this.shop.API_BASE_URL}/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: this.pendingResetEmail,
+                    userId: this.pendingResetUserId,
+                    code: code,
+                    password: 'VERIFY_CODE_ONLY_TEMP'
+                })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                const errorMsg = data?.error || data?.message || 'Ошибка проверки кода';
+                showToast(errorMsg, 'error');
+                if (codeError) {
+                    codeError.textContent = errorMsg;
+                    codeError.style.display = 'block';
+                }
+                return false;
+            }
+            
+            // Код верный - сохраняем его и переходим к вводу нового пароля
+            this.verifiedResetCode = code;
+            if (codeError) {
+                codeError.textContent = '';
+                codeError.style.display = 'none';
+            }
+            
+            this.showResetPasswordForm();
+            return true;
+            
+        } catch (error) {
+            hideLoadingIndicator();
+            let errorMessage = error.message || 'Ошибка проверки кода';
+            if (error.data) {
+                errorMessage = error.data.error || error.data.message || errorMessage;
+            }
+            showToast(errorMessage, 'error');
+            if (codeError) {
+                codeError.textContent = errorMessage;
+                codeError.style.display = 'block';
+            }
+            return false;
+        }
+    }
+    
+    showResetPasswordForm() {
+        const forgotForm = document.getElementById('forgot-password-form');
+        const verifyPasswordForm = document.getElementById('verify-password-form');
+        const selectForm = document.getElementById('select-account-form');
+        const verifyCodeForm = document.getElementById('verify-code-form');
+        const resetForm = document.getElementById('reset-password-form');
+        const title = document.getElementById('forgot-password-title');
+        const subtitle = document.getElementById('forgot-password-subtitle');
+        
+        if (forgotForm) forgotForm.style.display = 'none';
+        if (verifyPasswordForm) verifyPasswordForm.style.display = 'none';
+        if (selectForm) selectForm.style.display = 'none';
+        if (verifyCodeForm) verifyCodeForm.style.display = 'none';
+        if (resetForm) resetForm.style.display = 'block';
+        if (title) title.textContent = 'Новый пароль';
+        if (subtitle) subtitle.textContent = 'Введите новый пароль';
+        
+        // Находим username для отображения
+        const usernameDisplay = document.getElementById('reset-username-display');
+        if (usernameDisplay && this.pendingResetAccounts) {
+            const account = this.pendingResetAccounts.find(a => a.id === this.pendingResetUserId);
+            if (account) {
+                usernameDisplay.textContent = account.username;
+            }
+        }
+        
+        const passwordInput = document.getElementById('reset-password');
+        const password2Input = document.getElementById('reset-password2');
+        if (passwordInput) passwordInput.value = '';
+        if (password2Input) password2Input.value = '';
+        
+        const passwordError = document.getElementById('reset-password-error');
+        if (passwordError) {
+            passwordError.textContent = '';
+            passwordError.style.display = 'none';
+        }
+        
+        if (passwordInput) {
+            setTimeout(() => passwordInput.focus(), 100);
+        }
+    }
+    
+    backToSelectAccount() {
+        if (this.pendingResetAccounts && this.pendingResetAccounts.length > 1) {
+            this.showAccountSelection(this.pendingResetAccounts);
+        } else {
+            this.showVerifyPasswordForm();
+        }
+    }
+    
+    backToVerifyCode() {
+        this.showVerifyCodeForm();
+    }
+    
+    async confirmPasswordReset() {
+        const passwordInput = document.getElementById('reset-password');
+        const password2Input = document.getElementById('reset-password2');
+        const passwordError = document.getElementById('reset-password-error');
+        const codeInput = document.getElementById('reset-code');
+        
+        if (!passwordInput || !password2Input) {
+            showToast('Ошибка: поля не найдены', 'error');
+            return false;
+        }
+        
+        if (!this.pendingResetEmail || !this.pendingResetUserId) {
+            showToast('Ошибка: данные не найдены. Начните заново', 'error');
+            this.resetForgotPasswordForms();
+            return false;
+        }
+        
+        const password = passwordInput.value;
+        const password2 = password2Input.value;
+        const code = this.verifiedResetCode || (codeInput ? codeInput.value.trim() : '');
+        
+        if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+            showToast('Ошибка: код не найден. Начните заново', 'error');
+            this.resetForgotPasswordForms();
             return false;
         }
         
@@ -1114,6 +1530,12 @@ export class AuthModule {
             return false;
         }
         
+        if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+            showToast('Ошибка: код не найден. Начните заново', 'error');
+            this.resetForgotPasswordForms();
+            return false;
+        }
+        
         const confirmed = await this.showConfirmDialog(
             'Подтвердите изменение пароля',
             'Вы уверены, что хотите изменить пароль?'
@@ -1123,10 +1545,6 @@ export class AuthModule {
             return false;
         }
         
-        if (codeError) {
-            codeError.textContent = '';
-            codeError.style.display = 'none';
-        }
         if (passwordError) {
             passwordError.textContent = '';
             passwordError.style.display = 'none';
