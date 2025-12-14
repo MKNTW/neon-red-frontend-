@@ -19,7 +19,7 @@ const upload = multer({ storage });
 app.use(cors({
     origin: [
         'https://shop.mkntw.xyz',
-        'https://apiforshop.mkntw.xyz',
+        'https://api-shop.mkntw.xyz',
         'http://localhost:3000',
         'http://localhost:3001',
         'http://127.0.0.1:3000',
@@ -32,9 +32,15 @@ app.use(cors({
 app.use(express.json());
 
 // Supabase клиент
+// Проверка наличия обязательных переменных окружения
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error('ОШИБКА: SUPABASE_URL и SUPABASE_SERVICE_KEY должны быть установлены в переменных окружения');
+    // В production это вызовет ошибку, что правильно - лучше упасть сразу, чем работать с неверными данными
+}
+
 const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_KEY || ''
 );
 
 // JWT секрет
@@ -1318,8 +1324,13 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     }
 });
 
-// Запуск сервера
-app.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
-    console.log(`API доступен по адресу: http://localhost:${PORT}/api`);
-});
+// Экспорт для Vercel (serverless function)
+module.exports = app;
+
+// Запуск сервера только в локальной среде (не на Vercel)
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Сервер запущен на порту ${PORT}`);
+        console.log(`API доступен по адресу: http://localhost:${PORT}/api`);
+    });
+}
