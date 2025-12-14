@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>NEON RED • Магазин киберпанк товаров</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔴</text></svg>">
+</head>
+<body>
+    <!-- Экран проверки возраста -->
+    <div id="age-verification-modal" class="modal age-verification" role="dialog" aria-hidden="false" style="display: block; z-index: 10000;">
+        <div class="modal-content age-verification-content">
+            <div class="age-verification-header">
+                <h2>🔞 Проверка возраста</h2>
+            </div>
+            <div class="age-verification-body">
+                <p>Вам есть 18 лет?</p>
+                <p class="age-subtitle">Для доступа к сайту необходимо подтвердить возраст</p>
+            </div>
+            <div class="age-verification-actions">
+                <button id="age-yes" class="age-btn age-yes-btn">Да, мне есть 18</button>
+                <button id="age-no" class="age-btn age-no-btn">Нет, мне нет 18</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Модалка авторизации -->
+    <div id="auth-modal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content auth-modal-content">
+            <button class="close" onclick="closeAuthModal()">×</button>
+            <div class="auth-header">
+                <h2 id="auth-title">Вход</h2>
+                <p class="auth-subtitle" id="auth-subtitle">Войдите в свой аккаунт</p>
+            </div>
+
+            <form id="login-form" class="auth-form" style="display: block;">
+                <div class="input-group">
+                    <label for="login-username">Имя пользователя или Email</label>
+                    <input type="text" id="login-username" placeholder="Введите имя пользователя или email" required autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label for="login-password">Пароль</label>
+                    <input type="password" id="login-password" placeholder="Введите пароль" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="auth-btn primary-btn">Войти</button>
+                <div class="auth-switch">
+                    <p><a href="#" onclick="shop.openForgotPasswordModal()" style="color: var(--neon-blue); text-decoration: none; font-size: 0.9rem;">Забыли пароль?</a></p>
+                    <p style="margin-top: 10px;">Нет аккаунта? <a href="#" onclick="showRegisterForm()">Зарегистрироваться</a></p>
+                </div>
+            </form>
+
+            <form id="register-form" class="auth-form register-form-steps" style="display: none;">
+                <!-- Шаг 1: Имя пользователя -->
+                <div class="register-step active" data-step="1">
+                    <div class="step-indicator">
+                        <div class="step-number">1</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">2</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">3</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-username">Имя пользователя</label>
+                        <input type="text" id="register-username" placeholder="Введите имя пользователя" required autocomplete="username">
+                        <div class="input-error" id="username-error"></div>
+                    </div>
+                    <button type="button" class="auth-btn primary-btn" onclick="shop.nextRegisterStep()">Далее</button>
+                </div>
+
+                <!-- Шаг 2: Email -->
+                <div class="register-step" data-step="2">
+                    <div class="step-indicator">
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number active">2</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">3</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-email">Email</label>
+                        <input type="email" id="register-email" placeholder="Введите email" required autocomplete="email">
+                        <div class="input-error" id="email-error"></div>
+                    </div>
+                    <div class="step-buttons">
+                        <button type="button" class="auth-btn secondary-btn" onclick="shop.prevRegisterStep()">Назад</button>
+                        <button type="button" class="auth-btn primary-btn" onclick="shop.nextRegisterStep()">Далее</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 3: Подтверждение email (код из почты) -->
+                <div class="register-step" data-step="3">
+                    <div class="step-indicator">
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number active">3</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-code">Код подтверждения</label>
+                        <p style="color: #888; font-size: 14px; margin-bottom: 10px;">Мы отправили код подтверждения на <strong id="verification-email"></strong></p>
+                        <input type="text" id="register-code" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code">
+                        <div class="input-error" id="code-error"></div>
+                    </div>
+                    <div class="step-buttons">
+                        <button type="button" class="auth-btn secondary-btn" onclick="shop.prevRegisterStep()">Назад</button>
+                        <button type="button" class="auth-btn primary-btn" onclick="shop.confirmEmailCode()">Подтвердить</button>
+                    </div>
+                    <div style="margin-top: 15px; text-align: center;">
+                        <button type="button" id="resend-code-btn" class="auth-btn secondary-btn" onclick="shop.resendVerificationCode()" style="font-size: 14px; padding: 8px 16px;">
+                            Отправить код заново
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Шаг 4: Полное имя -->
+                <div class="register-step" data-step="4">
+                    <div class="step-indicator">
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number active">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-fullname">Полное имя (необязательно)</label>
+                        <input type="text" id="register-fullname" placeholder="Введите полное имя" autocomplete="name">
+                    </div>
+                    <div class="step-buttons">
+                        <button type="button" class="auth-btn secondary-btn" onclick="shop.prevRegisterStep()">Назад</button>
+                        <button type="button" class="auth-btn skip-btn" onclick="shop.skipFullName()">Пропустить</button>
+                        <button type="button" class="auth-btn primary-btn" onclick="shop.nextRegisterStep()">Далее</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 5: Пароль для входа -->
+                <div class="register-step" data-step="5">
+                    <div class="step-indicator">
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number active">5</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-password">Пароль</label>
+                        <input type="password" id="register-password" placeholder="Введите пароль (минимум 6 символов)" required autocomplete="new-password">
+                        <div class="password-hint">Минимум 6 символов</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-password2">Повторите пароль</label>
+                        <input type="password" id="register-password2" placeholder="Повторите пароль" required autocomplete="new-password">
+                        <div class="input-error" id="password-error"></div>
+                    </div>
+                    <div class="step-buttons">
+                        <button type="button" class="auth-btn secondary-btn" onclick="shop.prevRegisterStep()">Назад</button>
+                        <button type="button" class="auth-btn primary-btn" onclick="completeRegistrationWithPassword()">Завершить регистрацию</button>
+                    </div>
+                </div>
+
+                <div class="auth-switch">
+                    <p>Уже есть аккаунт? <a href="#" onclick="showLoginForm()">Войти</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модалка профиля -->
+    <div id="profile-modal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content profile-modal-content" style="margin-top: 10px;">
+            <button class="close" onclick="closeProfileModal()">×</button>
+            <div class="profile-header">
+                <div class="profile-header-top">
+                    <div class="profile-avatar-container">
+                        <div class="profile-avatar">
+                            <img id="profile-avatar-img" src="" alt="Avatar" style="display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            <span id="profile-avatar-text">U</span>
+                        </div>
+                        <label for="profile-avatar-upload" class="profile-avatar-upload-btn" title="Изменить фото">
+                            <span>📷</span>
+                        </label>
+                        <input type="file" id="profile-avatar-upload" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+                <h2 id="profile-username-header">Пользователь</h2>
+                <p class="profile-subtitle" id="profile-email-header">email@example.com</p>
+                <div id="profile-isadmin-badge" class="admin-badge" style="display: none;">
+                    <span>👑</span> Администратор
+                </div>
+            </div>
+            <div id="profile-info" class="profile-info">
+                <div class="profile-section">
+                    <h3 class="profile-section-title">Личная информация</h3>
+                    
+                    <div class="profile-field">
+                        <span class="profile-label">Имя пользователя</span>
+                        <div class="profile-field-content">
+                            <span class="profile-value" id="profile-username"></span>
+                            <button class="profile-edit-btn" data-field="username">✏️</button>
+                        </div>
+                        <div class="profile-edit-form" id="edit-username-form" style="display: none;">
+                            <input type="text" id="edit-username-input" placeholder="Новое имя пользователя">
+                            <div class="profile-edit-actions">
+                                <button class="profile-save-btn" onclick="saveProfileField('username')">Сохранить</button>
+                                <button class="profile-cancel-btn" onclick="cancelEdit('username')">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-field">
+                        <span class="profile-label">Email</span>
+                        <div class="profile-field-content">
+                            <span class="profile-value" id="profile-email"></span>
+                            <button class="profile-edit-btn" data-field="email">✏️</button>
+                        </div>
+                        <div class="profile-edit-form" id="edit-email-form" style="display: none;">
+                            <input type="email" id="edit-email-input" placeholder="Новый email">
+                            <div class="profile-edit-actions">
+                                <button class="profile-save-btn" onclick="shop.changeEmail()">Отправить код</button>
+                                <button class="profile-cancel-btn" onclick="cancelEdit('email')">Отмена</button>
+                            </div>
+                        </div>
+                        <div class="profile-edit-form" id="edit-email-code-form" style="display: none;">
+                            <p style="color: #888; font-size: 14px; margin-bottom: 15px; line-height: 1.5;">Код подтверждения отправлен на <strong id="new-email-display" style="color: #ff0033;"></strong></p>
+                            <input type="text" id="edit-email-code-input" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}">
+                            <div class="input-error" id="email-code-error"></div>
+                            <div class="profile-edit-actions email-confirm-actions">
+                                <button type="button" class="profile-save-btn email-confirm-btn" onclick="shop.confirmEmailChange()">
+                                    <span>✓</span> Подтвердить
+                                </button>
+                                <button type="button" class="profile-cancel-btn email-cancel-btn" onclick="shop.cancelEmailChange()">
+                                    <span>✕</span> Отмена
+                                </button>
+                            </div>
+                            <div class="email-resend-container">
+                                <button type="button" id="resend-email-change-btn" class="profile-resend-btn" onclick="shop.resendEmailChangeCode()">
+                                    <span>↻</span> Отправить код заново
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-field">
+                        <span class="profile-label">Полное имя</span>
+                        <div class="profile-field-content">
+                            <span class="profile-value" id="profile-fullname">Не указано</span>
+                            <button class="profile-edit-btn" data-field="fullname">✏️</button>
+                        </div>
+                        <div class="profile-edit-form" id="edit-fullname-form" style="display: none;">
+                            <input type="text" id="edit-fullname-input" placeholder="Полное имя">
+                            <div class="profile-edit-actions">
+                                <button class="profile-save-btn" onclick="saveProfileField('fullname')">Сохранить</button>
+                                <button class="profile-cancel-btn" onclick="cancelEdit('fullname')">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-field">
+                        <span class="profile-label">Пароль</span>
+                        <div class="profile-field-content">
+                            <span class="profile-value">••••••••</span>
+                            <button class="profile-edit-btn" data-field="password">✏️</button>
+                        </div>
+                        <div class="profile-edit-form" id="edit-password-form" style="display: none;">
+                            <input type="password" id="edit-password-input" placeholder="Новый пароль">
+                            <input type="password" id="edit-password-confirm" placeholder="Повторите пароль">
+                            <div class="profile-edit-actions">
+                                <button class="profile-save-btn" onclick="saveProfileField('password')">Сохранить</button>
+                                <button class="profile-cancel-btn" onclick="cancelEdit('password')">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="profile-orders" class="profile-section">
+                    <h3 class="profile-section-title">Ваши заказы</h3>
+                    <div id="orders-list" class="orders-list"></div>
+                </div>
+                <div class="profile-actions">
+                    <button onclick="logout()" class="profile-logout-btn-bottom">
+                        <span>🚪</span>
+                        <span>Выйти из аккаунта</span>
+                    </button>
+                    <button onclick="deleteAccount()" class="profile-delete-btn">
+                        <span>🗑️</span>
+                        <span>Удалить аккаунт</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка админ-панели -->
+    <div id="admin-modal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content admin-modal-content">
+            <button class="close" onclick="closeAdminPanel()">×</button>
+            <div class="admin-header">
+                <h2>Админ-панель</h2>
+            </div>
+            
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="products">
+                    <span class="tab-icon">📦</span>
+                    <span class="tab-text">Товары</span>
+                </button>
+                <button class="admin-tab" data-tab="users">
+                    <span class="tab-icon">👥</span>
+                    <span class="tab-text">Пользователи</span>
+                </button>
+                <button class="admin-tab" data-tab="orders">
+                    <span class="tab-icon">📋</span>
+                    <span class="tab-text">Заказы</span>
+                </button>
+            </div>
+            
+            <div id="products-tab" class="admin-tab-content active">
+                <div class="admin-section">
+                    <div class="admin-section-header">
+                        <h3>Управление товарами</h3>
+                        <button onclick="addNewProduct()" class="admin-btn add-btn">
+                            <span>+</span>
+                            <span class="btn-text">Добавить товар</span>
+                        </button>
+                    </div>
+                    <div class="admin-list-container">
+                        <div id="admin-products-list" class="admin-list"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="users-tab" class="admin-tab-content">
+                <div class="admin-section">
+                    <div class="admin-section-header">
+                        <h3>Пользователи</h3>
+                    </div>
+                    <div class="admin-list-container">
+                        <div id="admin-users-list" class="admin-list"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="orders-tab" class="admin-tab-content">
+                <div class="admin-section">
+                    <div class="admin-section-header">
+                        <h3>Заказы</h3>
+                    </div>
+                    <div class="admin-list-container">
+                        <div id="admin-orders-list" class="admin-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка редактирования товара -->
+    <div id="edit-product-modal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content edit-product-modal-content">
+            <button class="close" onclick="closeEditProductModal()">×</button>
+            <h2>Редактировать товар</h2>
+            <form id="edit-product-form" class="admin-form">
+                <input type="hidden" id="edit-product-id">
+                <input type="text" placeholder="Название товара" id="edit-product-title" required>
+                <textarea placeholder="Описание товара" id="edit-product-description"></textarea>
+                <input type="number" step="0.01" placeholder="Цена" id="edit-product-price" required>
+                <input type="number" placeholder="Количество" id="edit-product-quantity" required>
+                <label for="edit-product-image-upload" class="file-upload-label">
+                    <span>📷 Загрузить фото</span>
+                    <input type="file" id="edit-product-image-upload" accept="image/*" style="display: none;">
+                </label>
+                <div id="edit-product-image-preview" class="image-preview"></div>
+                <input type="text" placeholder="Или введите URL изображения" id="edit-product-image-url">
+                <button type="button" id="edit-remove-image" class="remove-image-btn" style="display: none;">🗑️ Удалить изображение</button>
+                <div class="admin-form-actions">
+                    <button type="button" class="secondary-btn" onclick="closeEditProductModal()">Отмена</button>
+                    <button type="submit" class="admin-btn">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модалка добавления товара -->
+    <div id="add-product-modal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content add-product-modal-content">
+            <button class="close" onclick="closeAddProductModal()">×</button>
+            <h2>Добавить товар</h2>
+            <form id="add-product-form" class="admin-form">
+                <input type="text" placeholder="Название товара" id="new-product-title" required>
+                <textarea placeholder="Описание товара" id="new-product-description"></textarea>
+                <input type="number" step="0.01" placeholder="Цена" id="new-product-price" required>
+                <input type="number" placeholder="Количество" id="new-product-quantity" required>
+                <label for="new-product-image-upload" class="file-upload-label">
+                    <span>📷 Загрузить фото из галереи</span>
+                    <input type="file" id="new-product-image-upload" accept="image/*" style="display: none;">
+                </label>
+                <div id="new-product-image-preview" class="image-preview"></div>
+                <input type="text" placeholder="Или введите URL изображения" id="new-product-image">
+                <button type="button" id="new-remove-image" class="remove-image-btn" style="display: none;">🗑️ Удалить изображение</button>
+                <div class="admin-form-actions">
+                    <button type="button" class="secondary-btn" onclick="closeAddProductModal()">Отмена</button>
+                    <button type="submit" class="admin-btn">Создать товар</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <header>
+        <div class="container">
+            <div class="header-top-new">
+                <h1 class="logo-animated">NEON RED</h1>
+                <div class="header-controls">
+                    <button id="profile-btn" onclick="openProfileModal()" class="header-btn profile-header-btn" style="display: none;" aria-label="Открыть профиль" aria-haspopup="dialog">
+                        <span aria-hidden="true">👤</span>
+                        <span class="btn-text">Профиль</span>
+                    </button>
+                    <button id="auth-btn" onclick="openAuthModal()" class="header-btn auth-header-btn" aria-label="Войти в аккаунт" aria-haspopup="dialog">Войти</button>
+                    <button id="cart-btn" onclick="openCartModal()" class="header-btn cart-header-btn" aria-label="Открыть корзину" aria-haspopup="dialog">
+                        <span class="cart-icon" aria-hidden="true">🛒</span>
+                        <span class="cart-badge" id="cart-badge" aria-live="polite" aria-atomic="true">0</span>
+                    </button>
+                </div>
+            </div>
+            <div class="header-admin">
+                <button id="admin-btn" onclick="openAdminPanel()" class="header-btn admin-header-btn" style="display: none;" aria-label="Открыть админ-панель" aria-haspopup="dialog">
+                    <span aria-hidden="true">⚙️</span>
+                    <span class="btn-text">Админ-панель</span>
+                </button>
+            </div>
+            <div class="nav-container">
+                <nav class="desktop-nav" role="navigation" aria-label="Основная навигация">
+                    <a href="#" onclick="loadProducts(); return false;" aria-label="Показать все товары">Все товары</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container" role="main">
+        <div class="products" id="products" role="list" aria-label="Список товаров" aria-live="polite">
+            <!-- Товары загружаются через API -->
+        </div>
+    </main>
+
+    <!-- Модальное окно корзины -->
+    <div id="cart-modal" class="modal" role="dialog" aria-labelledby="cart-title" aria-hidden="true">
+        <div class="modal-content">
+            <div class="cart-header">
+                <h2 id="cart-title">Ваша корзина</h2>
+                <button class="close" onclick="closeCartModal()">×</button>
+            </div>
+            <div id="cart-items"></div>
+            <div class="cart-footer">
+                <p>Итого: <strong id="cart-total-modal">0 ₽</strong></p>
+                <div class="cart-buttons">
+                    <button id="clear-cart" class="secondary-btn">Очистить</button>
+                    <button id="checkout" onclick="checkout()">Оформить заказ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка восстановления пароля -->
+    <div id="forgot-password-modal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content auth-modal-content">
+            <button class="close" onclick="shop.closeForgotPasswordModal()">×</button>
+            <div class="auth-header">
+                <h2 id="forgot-password-title">Восстановление пароля</h2>
+                <p class="auth-subtitle" id="forgot-password-subtitle">Введите email для восстановления</p>
+            </div>
+
+            <!-- Форма восстановления пароля -->
+            <div id="forgot-password-form" class="auth-form" style="display: block;">
+                <div class="input-group">
+                    <label for="forgot-email">Email</label>
+                    <input type="email" id="forgot-email" placeholder="Введите email для восстановления" required autocomplete="email">
+                    <div class="input-error" id="forgot-email-error"></div>
+                </div>
+                <button type="button" class="auth-btn primary-btn" onclick="shop.sendPasswordResetCode()">Отправить код</button>
+                <div class="auth-switch">
+                    <p><a href="#" onclick="shop.closeForgotPasswordModal(); openAuthModal(); showLoginForm();">Вернуться к входу</a></p>
+                </div>
+            </div>
+
+            <!-- Форма выбора аккаунта -->
+            <div id="select-account-form" class="auth-form" style="display: none;">
+                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Найдено несколько аккаунтов с этим email. Выберите аккаунт:</p>
+                <div id="accounts-list" style="margin-bottom: 20px;"></div>
+                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToForgotPassword()">Назад</button>
+            </div>
+
+            <!-- Форма смены пароля -->
+            <div id="reset-password-form" class="auth-form" style="display: none;">
+                <p style="color: #888; margin-bottom: 15px; line-height: 1.5;">Код подтверждения отправлен на <strong id="reset-email-display" style="color: #ff0033;"></strong></p>
+                <div class="input-group">
+                    <label for="reset-code">Код подтверждения</label>
+                    <input type="text" id="reset-code" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" style="font-size: 18px;">
+                    <div class="input-error" id="reset-code-error"></div>
+                </div>
+                <div class="input-group">
+                    <label for="reset-password">Новый пароль</label>
+                    <input type="password" id="reset-password" placeholder="Введите новый пароль (минимум 6 символов)" required autocomplete="new-password">
+                    <div class="password-hint">Минимум 6 символов</div>
+                </div>
+                <div class="input-group">
+                    <label for="reset-password2">Повторите пароль</label>
+                    <input type="password" id="reset-password2" placeholder="Повторите пароль" required autocomplete="new-password">
+                    <div class="input-error" id="reset-password-error"></div>
+                </div>
+                <button type="button" class="auth-btn primary-btn" onclick="shop.confirmPasswordReset()">Изменить пароль</button>
+                <div class="email-resend-container" style="margin-top: 15px;">
+                    <button type="button" id="resend-reset-code-btn" class="profile-resend-btn" onclick="shop.resendResetCode()">
+                        <span>↻</span> Отправить код заново
+                    </button>
+                </div>
+                <div class="auth-switch">
+                    <p><a href="#" onclick="shop.closeForgotPasswordModal(); openAuthModal(); showLoginForm();">Вернуться к входу</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { NeonShop } from './js/shop.js';
+        
+        // Глобальные функции для совместимости со старым кодом
+        let shop;
+        
+        function openAuthModal() {
+            if (shop) shop.openAuthModal();
+        }
+        
+        function closeAuthModal() {
+            if (shop) shop.closeAuthModal();
+        }
+        
+        function openProfileModal() {
+            if (shop) shop.openProfileModal();
+        }
+        
+        function closeProfileModal() {
+            if (shop) shop.closeProfileModal();
+        }
+        
+        function openCartModal() {
+            if (shop) shop.openCartModal();
+        }
+        
+        function closeCartModal() {
+            if (shop) shop.closeCartModal();
+        }
+        
+        function openAdminPanel() {
+            if (shop) shop.openAdminPanel();
+        }
+        
+        function loadProducts() {
+            if (shop) shop.loadProducts();
+        }
+        
+        function showLoginForm() {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            if (loginForm) loginForm.style.display = 'flex';
+            if (registerForm) registerForm.style.display = 'none';
+        }
+        
+        function showRegisterForm() {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            if (loginForm) loginForm.style.display = 'none';
+            if (registerForm) registerForm.style.display = 'flex';
+        }
+        
+        function switchAdminTab(tabName, event) {
+            if (!shop) return;
+            
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.admin-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            let activeTabName = tabName;
+            if (event && event.target) {
+                const clickedTab = event.target.closest('.admin-tab');
+                if (clickedTab && clickedTab.dataset.tab) {
+                    activeTabName = clickedTab.dataset.tab;
+                }
+            }
+            
+            const tabButton = document.querySelector(`.admin-tab[data-tab="${activeTabName}"]`);
+            if (tabButton) {
+                tabButton.classList.add('active');
+            }
+            
+            const tabContent = document.getElementById(activeTabName + '-tab');
+            if (tabContent) {
+                tabContent.classList.add('active');
+                
+                const listContainer = tabContent.querySelector('.admin-list');
+                if (listContainer && listContainer.children.length === 0) {
+                    if (activeTabName === 'users') {
+                        shop.adminModule.loadAdminUsers();
+                    } else if (activeTabName === 'orders') {
+                        shop.adminModule.loadAdminOrders();
+                    }
+                }
+            }
+        }
+        
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            shop = new NeonShop();
+            window.shop = shop; // Для отладки
+            
+            // Обработчик формы входа
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const usernameInput = document.getElementById('login-username');
+                    const passwordInput = document.getElementById('login-password');
+                    if (usernameInput && passwordInput) {
+                        const username = usernameInput.value.trim();
+                        const password = passwordInput.value;
+                        if (username && password) {
+                            await shop.login(username, password);
+                        }
+                    }
+                });
+            }
+            
+            // Обработчик офлайн/онлайн событий
+            import('./js/utils.js').then(({ showToast }) => {
+                window.addEventListener('offline', () => {
+                    showToast('Отсутствует подключение к интернету', 'error', 5000);
+                });
+                
+                window.addEventListener('online', () => {
+                    showToast('Подключение восстановлено', 'success', 3000);
+                });
+            });
+        });
+        
+        // Функции для совместимости со старым кодом
+        async function completeRegistrationWithPassword() {
+            if (shop) {
+                await shop.completeRegistrationWithPassword();
+            }
+        }
+        
+        function logout() {
+            if (shop) shop.logout();
+        }
+        
+        function checkout() {
+            if (shop) shop.checkout();
+        }
+        
+        async function saveProfileField(field) {
+            if (shop) {
+                await shop.saveProfileField(field);
+            }
+        }
+        
+        function cancelEdit(field) {
+            const form = document.getElementById(`edit-${field}-form`);
+            if (form) {
+                form.style.display = 'none';
+            }
+        }
+        
+        async function deleteAccount() {
+            if (shop) {
+                await shop.deleteAccount();
+            }
+        }
+        
+        function addNewProduct() {
+            if (shop) shop.adminModule.addNewProduct();
+        }
+        
+        function closeEditProductModal() {
+            if (shop) shop.adminModule.closeEditProductModal();
+        }
+        
+        function closeAddProductModal() {
+            if (shop) shop.adminModule.closeAddProductModal();
+        }
+        
+        // Экспортируем функции в window для onclick обработчиков
+        window.completeRegistrationWithPassword = completeRegistrationWithPassword;
+        window.logout = logout;
+        window.checkout = checkout;
+        window.saveProfileField = saveProfileField;
+        window.cancelEdit = cancelEdit;
+        window.deleteAccount = deleteAccount;
+        window.addNewProduct = addNewProduct;
+        window.closeEditProductModal = closeEditProductModal;
+        window.closeAddProductModal = closeAddProductModal;
+        window.openAuthModal = openAuthModal;
+        window.closeAuthModal = closeAuthModal;
+        window.openProfileModal = openProfileModal;
+        window.closeProfileModal = closeProfileModal;
+        window.openCartModal = openCartModal;
+        window.closeCartModal = closeCartModal;
+        window.openAdminPanel = openAdminPanel;
+        window.loadProducts = loadProducts;
+        window.showLoginForm = showLoginForm;
+        window.showRegisterForm = showRegisterForm;
+        window.switchAdminTab = switchAdminTab;
+    </script>
+</body>
+</html>
+
