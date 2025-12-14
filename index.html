@@ -63,6 +63,8 @@
                         <div class="step-number">3</div>
                         <div class="step-line"></div>
                         <div class="step-number">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
                     </div>
                     <div class="input-group">
                         <label for="register-username">Имя пользователя</label>
@@ -82,6 +84,8 @@
                         <div class="step-number">3</div>
                         <div class="step-line"></div>
                         <div class="step-number">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
                     </div>
                     <div class="input-group">
                         <label for="register-email">Email</label>
@@ -104,6 +108,8 @@
                         <div class="step-number active">3</div>
                         <div class="step-line"></div>
                         <div class="step-number">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
                     </div>
                     <div class="input-group">
                         <label for="register-fullname">Полное имя (необязательно)</label>
@@ -126,6 +132,8 @@
                         <div class="step-number completed">✓</div>
                         <div class="step-line completed"></div>
                         <div class="step-number active">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-number">5</div>
                     </div>
                     <div class="input-group">
                         <label for="register-password">Пароль</label>
@@ -140,6 +148,35 @@
                     <div class="step-buttons">
                         <button type="button" class="auth-btn secondary-btn" onclick="shop.prevRegisterStep()">Назад</button>
                         <button type="submit" class="auth-btn primary-btn">Зарегистрироваться</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 5: Подтверждение email -->
+                <div class="register-step" data-step="5">
+                    <div class="step-indicator">
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number completed">✓</div>
+                        <div class="step-line completed"></div>
+                        <div class="step-number active">5</div>
+                    </div>
+                    <div class="input-group">
+                        <label for="register-code">Код подтверждения</label>
+                        <p style="color: #888; font-size: 14px; margin-bottom: 10px;">Мы отправили код подтверждения на <strong id="verification-email"></strong></p>
+                        <input type="text" id="register-code" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code">
+                        <div class="input-error" id="code-error"></div>
+                    </div>
+                    <div class="step-buttons">
+                        <button type="button" class="auth-btn secondary-btn" onclick="shop.confirmEmailCode()">Подтвердить</button>
+                    </div>
+                    <div style="margin-top: 15px; text-align: center;">
+                        <button type="button" id="resend-code-btn" class="auth-btn secondary-btn" onclick="shop.resendVerificationCode()" style="font-size: 14px; padding: 8px 16px;">
+                            Отправить код заново
+                        </button>
                     </div>
                 </div>
 
@@ -422,6 +459,13 @@
             </div>
         </div>
     </div>
+
+    <footer>
+        <div class="container">
+            <p>© 2025 NEON RED • VAPE SHOP</p>
+        </div>
+    </footer>
+
     <script type="module" src="script.js"></script>
 </body>
 </html>

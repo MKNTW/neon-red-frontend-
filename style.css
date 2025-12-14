@@ -135,7 +135,6 @@ header {
     align-items: center;
     gap: 15px;
     flex-wrap: wrap;
-    margin-top: 8px;
 }
 
 .header-top h1,

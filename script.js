@@ -112,6 +112,8 @@ class NeonShop {
         this.token = localStorage.getItem('token') || null;
         // Категории больше не используются
         this.productsEventDelegate = false; // Флаг для делегирования событий
+        this.pendingVerificationEmail = null; // Email для подтверждения
+        this.resendCodeTimer = null; // Таймер для повторной отправки
 
         // Автоматическое определение URL для API
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -1944,6 +1946,17 @@ class NeonShop {
                 }
             });
         }
+
+        // Обработчик Enter для поля кода подтверждения
+        const codeInput = document.getElementById('register-code');
+        if (codeInput) {
+            codeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    shop.confirmEmailCode();
+                }
+            });
+        }
         
         // Обработчики для пошаговой регистрации
         this.setupRegisterSteps();
@@ -2339,8 +2352,11 @@ class NeonShop {
             this.registerData.fullName = fullName;
         }
         
-        this.currentRegisterStep = currentStep + 1;
-        this.updateRegisterStepDisplay();
+        // Не переходим на шаг 5 автоматически - он показывается только после регистрации
+        if (currentStep < 4) {
+            this.currentRegisterStep = currentStep + 1;
+            this.updateRegisterStepDisplay();
+        }
     }
     
     prevRegisterStep() {
@@ -2439,6 +2455,24 @@ class NeonShop {
 
             const data = await response.json();
 
+            // Если требуется подтверждение email
+            if (data.needsCodeConfirmation) {
+                this.pendingVerificationEmail = data.email;
+                // Показываем шаг 5 (ввод кода)
+                this.currentRegisterStep = 5;
+                this.updateRegisterStepDisplay();
+                // Устанавливаем email в поле
+                const emailEl = document.getElementById('verification-email');
+                if (emailEl) {
+                    emailEl.textContent = data.email;
+                }
+                // Запускаем таймер для повторной отправки
+                this.startResendCodeTimer();
+                this.showToast('Код подтверждения отправлен на почту', 'success');
+                return true;
+            }
+
+            // Старая логика (если код не требуется)
             this.user = data.user;
             this.token = data.token;
 
@@ -2462,6 +2496,137 @@ class NeonShop {
             this.showToast(error.message, 'error');
             return false;
         }
+    }
+
+    async confirmEmailCode() {
+        const codeInput = document.getElementById('register-code');
+        const codeError = document.getElementById('code-error');
+        
+        if (!codeInput || !this.pendingVerificationEmail) {
+            this.showToast('Ошибка: email не найден', 'error');
+            return false;
+        }
+
+        const code = codeInput.value.trim();
+        
+        // Валидация кода
+        if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+            if (codeError) {
+                codeError.textContent = 'Введите 6-значный код';
+                codeError.style.display = 'block';
+            }
+            return false;
+        }
+
+        if (codeError) {
+            codeError.textContent = '';
+            codeError.style.display = 'none';
+        }
+
+        try {
+            const response = await safeFetch(`${this.API_BASE_URL}/confirm-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: this.pendingVerificationEmail,
+                    code: code
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showToast('Email успешно подтверждён! Теперь можно войти', 'success');
+                this.pendingVerificationEmail = null;
+                // Показываем форму входа
+                showLoginForm();
+                // Сброс формы регистрации
+                this.setupRegisterSteps();
+                this.updateRegisterStepDisplay();
+                if (this.resendCodeTimer) {
+                    clearInterval(this.resendCodeTimer);
+                    this.resendCodeTimer = null;
+                }
+                return true;
+            } else {
+                this.showToast(data.error || data.message || 'Ошибка подтверждения', 'error');
+                if (codeError) {
+                    codeError.textContent = data.error || data.message || 'Неверный код';
+                    codeError.style.display = 'block';
+                }
+                return false;
+            }
+
+        } catch (error) {
+            this.showToast(error.message, 'error');
+            if (codeError) {
+                codeError.textContent = error.message;
+                codeError.style.display = 'block';
+            }
+            return false;
+        }
+    }
+
+    async resendVerificationCode() {
+        if (!this.pendingVerificationEmail) {
+            this.showToast('Ошибка: email не найден', 'error');
+            return false;
+        }
+
+        const resendBtn = document.getElementById('resend-code-btn');
+        if (resendBtn && resendBtn.disabled) {
+            return false;
+        }
+
+        try {
+            const response = await safeFetch(`${this.API_BASE_URL}/resend-code`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: this.pendingVerificationEmail
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showToast('Новый код отправлен на почту', 'success');
+                this.startResendCodeTimer();
+                return true;
+            } else {
+                this.showToast(data.error || data.message || 'Ошибка отправки кода', 'error');
+                return false;
+            }
+
+        } catch (error) {
+            this.showToast(error.message, 'error');
+            return false;
+        }
+    }
+
+    startResendCodeTimer() {
+        const resendBtn = document.getElementById('resend-code-btn');
+        if (!resendBtn) return;
+
+        let timer = 60;
+        resendBtn.disabled = true;
+        resendBtn.textContent = `Отправить код заново (${timer})`;
+
+        if (this.resendCodeTimer) {
+            clearInterval(this.resendCodeTimer);
+        }
+
+        this.resendCodeTimer = setInterval(() => {
+            timer--;
+            resendBtn.textContent = `Отправить код заново (${timer})`;
+
+            if (timer <= 0) {
+                clearInterval(this.resendCodeTimer);
+                this.resendCodeTimer = null;
+                resendBtn.textContent = 'Отправить код заново';
+                resendBtn.disabled = false;
+            }
+        }, 1000);
     }
 
     async validateToken() {
