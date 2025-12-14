@@ -19,7 +19,7 @@ const upload = multer({ storage });
 app.use(cors({
     origin: [
         'https://shop.mkntw.xyz',
-        'https://apiforshop.mkntw.xyz',
+        'https://api-shop.mkntw.xyz',
         'http://localhost:3000',
         'http://localhost:3001',
         'http://127.0.0.1:3000',
@@ -30,13 +30,6 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
-
-// Проверка переменных окружения
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('ОШИБКА: SUPABASE_URL и SUPABASE_SERVICE_KEY должны быть установлены в переменных окружения!');
-    console.error('SUPABASE_URL:', process.env.SUPABASE_URL ? 'установлен' : 'НЕ УСТАНОВЛЕН');
-    console.error('SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? 'установлен' : 'НЕ УСТАНОВЛЕН');
-}
 
 // Supabase клиент
 const supabase = createClient(
@@ -133,30 +126,19 @@ app.post('/api/register', async (req, res) => {
         const cleanEmail = email.trim().toLowerCase();
 
         // Проверка существования пользователя (используем параметризованные запросы)
-        const { data: existingUsersByUsername, error: usernameError } = await supabase
+        const { data: existingUserByUsername } = await supabase
             .from('users')
             .select('id')
             .eq('username', cleanUsername)
-            .limit(1);
+            .single();
             
-        if (usernameError) {
-            console.error('Check username error:', usernameError);
-            throw usernameError;
-        }
-            
-        const { data: existingUsersByEmail, error: emailError } = await supabase
+        const { data: existingUserByEmail } = await supabase
             .from('users')
             .select('id')
             .eq('email', cleanEmail)
-            .limit(1);
+            .single();
             
-        if (emailError) {
-            console.error('Check email error:', emailError);
-            throw emailError;
-        }
-            
-        const existingUser = (existingUsersByUsername && existingUsersByUsername.length > 0) || 
-                            (existingUsersByEmail && existingUsersByEmail.length > 0);
+        const existingUser = existingUserByUsername || existingUserByEmail;
 
         if (existingUser) {
             return res.status(400).json({ 
@@ -169,14 +151,9 @@ app.post('/api/register', async (req, res) => {
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
         // Первый пользователь - админ (warning: change for prod)
-        const { count, error: countError } = await supabase
+        const { count } = await supabase
             .from('users')
-            .select('*', { count: 'exact', head: true });
-            
-        if (countError) {
-            console.error('Count users error:', countError);
-            throw countError;
-        }
+            .select('*', { count: 'exact' });
             
         const isAdmin = count === 0;
 
@@ -219,16 +196,7 @@ app.post('/api/register', async (req, res) => {
 
     } catch (error) {
         console.error('Registration error:', error);
-        console.error('Error details:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint
-        });
-        res.status(500).json({ 
-            error: 'Ошибка регистрации',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
+        res.status(500).json({ error: 'Ошибка регистрации' });
     }
 });
 
@@ -798,45 +766,63 @@ app.get('/api/admin/products', authenticateToken, authenticateAdmin, async (req,
 
 // Создать товар (админ)
 app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req, res) => {
+    let productData = null;
     try {
         const { title, description, price, quantity, category, image_url } = req.body;
+        
+        console.log('Create product request:', { title, price, quantity, category, hasImage: !!image_url });
         
         // Валидация
         if (!title || typeof title !== 'string' || title.trim().length < 1) {
             return res.status(400).json({ error: 'Название товара обязательно' });
         }
-        if (typeof price !== 'number' || price < 0) {
+        
+        // Преобразование и валидация price
+        const priceNum = typeof price === 'string' ? parseFloat(price) : price;
+        if (typeof priceNum !== 'number' || isNaN(priceNum) || priceNum < 0) {
             return res.status(400).json({ error: 'Цена должна быть положительным числом' });
         }
-        if (typeof quantity !== 'number' || quantity < 0 || !Number.isInteger(quantity)) {
+        
+        // Преобразование и валидация quantity
+        const quantityNum = typeof quantity === 'string' ? parseInt(quantity) : quantity;
+        if (typeof quantityNum !== 'number' || isNaN(quantityNum) || quantityNum < 0 || !Number.isInteger(quantityNum)) {
             return res.status(400).json({ error: 'Количество должно быть неотрицательным целым числом' });
         }
         
-        const productData = {
+        productData = {
             title: title.trim(),
-            description: description ? description.trim() : null,
-            price: parseFloat(price),
-            quantity: parseInt(quantity),
-            category: category ? category.trim() : null
+            description: description ? (typeof description === 'string' ? description.trim() : null) : null,
+            price: priceNum,
+            quantity: quantityNum,
+            category: category ? (typeof category === 'string' ? category.trim() : null) : null
         };
         
         // Если передан image_url, извлекаем из него путь или сохраняем как image_path
-        if (image_url && image_url.trim() !== '') {
-            const imageUrl = image_url.trim();
-            // Если это полный URL, извлекаем путь
-            if (imageUrl.includes('storage/v1/object/public/product-images/')) {
-                const match = imageUrl.match(/storage\/v1\/object\/public\/product-images\/(.+)$/);
-                if (match) {
-                    productData.image_path = match[1];
+        if (image_url && typeof image_url === 'string' && image_url.trim() !== '') {
+            try {
+                const imageUrl = image_url.trim();
+                // Если это полный URL, извлекаем путь
+                if (imageUrl.includes('storage/v1/object/public/product-images/')) {
+                    const match = imageUrl.match(/storage\/v1\/object\/public\/product-images\/(.+)$/);
+                    if (match) {
+                        productData.image_path = match[1];
+                    } else {
+                        productData.image_path = imageUrl;
+                    }
+                } else if (imageUrl.startsWith('http')) {
+                    // Если это другой URL, сохраняем как путь (будет обработан при получении)
+                    productData.image_path = imageUrl;
+                } else {
+                    // Если это просто путь
+                    productData.image_path = imageUrl;
                 }
-            } else if (imageUrl.startsWith('http')) {
-                // Если это другой URL, сохраняем как путь (будет обработан при получении)
-                productData.image_path = imageUrl;
-            } else {
-                // Если это просто путь
-                productData.image_path = imageUrl;
+            } catch (imgError) {
+                console.error('Error processing image_url:', imgError);
+                // Продолжаем без изображения, если ошибка обработки
             }
         }
+        
+        console.log('Inserting product data:', productData);
         
         const { data: product, error } = await supabase
             .from('products')
@@ -844,13 +830,27 @@ app.post('/api/admin/products', authenticateToken, authenticateAdmin, async (req
             .select('id, title, description, price, quantity, category, image_path, created_at')
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase insert error:', error);
+            throw error;
+        }
 
+        console.log('Product created successfully:', product);
         res.status(201).json(product);
 
     } catch (error) {
         console.error('Create product error:', error);
-        res.status(500).json({ error: 'Ошибка создания товара' });
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            productData: productData
+        });
+        res.status(500).json({ 
+            error: 'Ошибка создания товара',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 
