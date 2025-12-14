@@ -71,17 +71,29 @@ async function safeFetch(url, options = {}) {
         // Если ответ не OK, пытаемся получить сообщение об ошибке
         if (!response.ok) {
             let errorMessage = `Ошибка ${response.status}`;
+            let errorDetails = null;
             try {
                 const errorData = await response.json();
                 errorMessage = errorData.error || errorData.message || errorMessage;
+                errorDetails = errorData.details || errorData;
+                // Логируем полную информацию об ошибке для отладки
+                console.error(`[safeFetch] Error ${response.status} for ${url}:`, {
+                    message: errorMessage,
+                    details: errorDetails,
+                    fullResponse: errorData
+                });
             } catch (e) {
                 // Если не удалось распарсить JSON, используем статус
                 if (response.status === 401) errorMessage = 'Требуется авторизация';
                 else if (response.status === 403) errorMessage = 'Доступ запрещен';
                 else if (response.status === 404) errorMessage = `Ресурс не найден: ${url}`;
                 else if (response.status === 500) errorMessage = 'Ошибка сервера';
+                console.error(`[safeFetch] Error ${response.status} for ${url}:`, errorMessage, e);
             }
-            console.error(`[safeFetch] Error ${response.status} for ${url}:`, errorMessage);
+            // Добавляем детали к сообщению об ошибке, если они есть
+            if (errorDetails && typeof errorDetails === 'string') {
+                errorMessage += `: ${errorDetails}`;
+            }
             throw new Error(errorMessage);
         }
         
@@ -699,13 +711,31 @@ class NeonShop {
     }
 
     async saveNewProduct() {
-        const title = document.getElementById('new-product-title').value;
-        const description = document.getElementById('new-product-description').value;
-        const price = parseFloat(document.getElementById('new-product-price').value);
-        const quantity = parseInt(document.getElementById('new-product-quantity').value);
-        const imageUrl = document.getElementById('new-product-image').value;
+        const title = document.getElementById('new-product-title').value?.trim();
+        const description = document.getElementById('new-product-description').value?.trim() || null;
+        const priceValue = document.getElementById('new-product-price').value;
+        const quantityValue = document.getElementById('new-product-quantity').value;
+        const imageUrl = document.getElementById('new-product-image').value?.trim();
         const fileInput = document.getElementById('new-product-image-upload');
         const file = fileInput.files[0];
+
+        // Валидация
+        if (!title || title.length < 1) {
+            this.showToast('Название товара обязательно', 'error');
+            return;
+        }
+
+        const price = parseFloat(priceValue);
+        if (isNaN(price) || price < 0) {
+            this.showToast('Цена должна быть положительным числом', 'error');
+            return;
+        }
+
+        const quantity = parseInt(quantityValue);
+        if (isNaN(quantity) || quantity < 0 || !Number.isInteger(quantity)) {
+            this.showToast('Количество должно быть неотрицательным целым числом', 'error');
+            return;
+        }
 
         try {
             let finalImageUrl = imageUrl || 'https://via.placeholder.com/300';
@@ -721,29 +751,40 @@ class NeonShop {
             }
             
             // Создаем товар с полученным URL изображения
+            const productData = {
+                title,
+                description: description || null,
+                price,
+                quantity,
+                image_url: finalImageUrl
+            };
+            
+            console.log('Creating product with data:', productData);
+            console.log('Token present:', !!this.token);
+            
             const productResponse = await safeFetch(`${this.API_BASE_URL}/admin/products`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${this.token}`
                 },
-                body: JSON.stringify({
-                    title,
-                    description,
-                    price,
-                    quantity,
-                    image_url: finalImageUrl
-                })
+                body: JSON.stringify(productData)
             });
             
-            await productResponse.json();
+            const productResult = await productResponse.json();
+            console.log('Product created successfully:', productResult);
             this.showToast('Товар создан', 'success');
 
             this.closeAddProductModal();
             await this.loadAdminProducts();
             await this.loadProducts();
         } catch (error) {
-            this.showToast(error.message, 'error');
+            console.error('Error creating product:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack
+            });
+            this.showToast(error.message || 'Ошибка создания товара', 'error');
         }
     }
 
