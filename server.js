@@ -591,16 +591,20 @@ app.post('/api/confirm-email', async (req, res) => {
         const cleanEmail = email.trim().toLowerCase();
         const cleanCode = code.trim();
 
-        // Находим пользователя
+        // Находим пользователя (нужны все поля для создания токена)
         const { data: user, error: userError } = await supabase
             .from('users')
-            .select('id, email_verified')
+            .select('id, username, email, email_verified, is_admin')
             .eq('email', cleanEmail)
             .maybeSingle();
 
         if (userError) {
-            console.error('Error finding user:', userError);
-            throw new Error('Ошибка при поиске пользователя');
+            console.error('[confirm-email] Error finding user:', userError);
+            console.error('[confirm-email] Error details:', JSON.stringify(userError, null, 2));
+            return res.status(500).json({ 
+                error: 'Ошибка при поиске пользователя',
+                message: userError.message || 'Неизвестная ошибка'
+            });
         }
 
         if (!user) {
@@ -612,7 +616,8 @@ app.post('/api/confirm-email', async (req, res) => {
         }
 
         // Находим последний код подтверждения (по user_id или email)
-        let record, recordError;
+        let record = null;
+        let recordError = null;
         
         // Сначала ищем по user_id
         const { data: recordByUserId, error: errorByUserId } = await supabase
@@ -623,27 +628,44 @@ app.post('/api/confirm-email', async (req, res) => {
             .limit(1)
             .maybeSingle();
             
+        if (errorByUserId) {
+            console.error('[confirm-email] Error finding code by user_id:', errorByUserId);
+            // Не прерываем выполнение, пробуем найти по email
+        }
+            
         if (recordByUserId) {
             record = recordByUserId;
-            recordError = errorByUserId;
         } else {
             // Если не нашли по user_id, ищем по email (временный код)
-            const { data: recordByEmail, error: errorByEmail } = await supabase
-                .from('email_verifications')
-                .select('*')
-                .eq('email', cleanEmail)
-                .is('user_id', null)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-                
-            record = recordByEmail;
-            recordError = errorByEmail;
+            try {
+                const { data: recordByEmail, error: errorByEmail } = await supabase
+                    .from('email_verifications')
+                    .select('*')
+                    .eq('email', cleanEmail)
+                    .is('user_id', null)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                    
+                if (errorByEmail) {
+                    console.error('[confirm-email] Error finding code by email:', errorByEmail);
+                    // Если поле email не существует, это нормально - пробуем только по user_id
+                    console.log('[confirm-email] Email field might not exist, trying user_id only');
+                } else if (recordByEmail) {
+                    record = recordByEmail;
+                }
+            } catch (err) {
+                console.warn('[confirm-email] Error querying by email (field might not exist):', err.message);
+                // Продолжаем, если поле email не существует
+            }
         }
 
-        if (recordError) {
-            console.error('Error finding verification code:', recordError);
-            throw new Error('Ошибка при поиске кода подтверждения');
+        if (!record && (errorByUserId || recordError)) {
+            console.error('[confirm-email] No code found and errors occurred');
+            return res.status(500).json({ 
+                error: 'Ошибка при поиске кода подтверждения',
+                message: 'Попробуйте запросить новый код'
+            });
         }
 
         if (!record) {
@@ -668,40 +690,81 @@ app.post('/api/confirm-email', async (req, res) => {
             .eq('id', user.id);
 
         if (updateError) {
-            console.error('Error updating email_verified:', updateError);
-            throw new Error('Ошибка при подтверждении email');
+            console.error('[confirm-email] Error updating email_verified:', updateError);
+            return res.status(500).json({ 
+                error: 'Ошибка при подтверждении email',
+                message: updateError.message || 'Неизвестная ошибка'
+            });
         }
 
         // Удаляем использованный код (и по user_id, и по email для временных кодов)
-        await supabase
-            .from('email_verifications')
-            .delete()
-            .eq('user_id', user.id);
+        try {
+            await supabase
+                .from('email_verifications')
+                .delete()
+                .eq('user_id', user.id);
+        } catch (deleteError) {
+            console.warn('[confirm-email] Error deleting code by user_id:', deleteError);
+        }
         
-        // Также удаляем временные коды по email
-        await supabase
-            .from('email_verifications')
-            .delete()
-            .eq('email', cleanEmail)
-            .is('user_id', null);
+        // Также удаляем временные коды по email (если поле существует)
+        try {
+            await supabase
+                .from('email_verifications')
+                .delete()
+                .eq('email', cleanEmail)
+                .is('user_id', null);
+        } catch (deleteError) {
+            console.warn('[confirm-email] Error deleting code by email (field might not exist):', deleteError);
+            // Это нормально, если поле email не существует
+        }
+
+        // Проверяем наличие необходимых полей для создания токена
+        if (!user.username) {
+            console.error('[confirm-email] User username is missing:', user);
+            return res.status(500).json({ 
+                error: 'Ошибка: данные пользователя неполные',
+                message: 'Отсутствует имя пользователя'
+            });
+        }
 
         // Создаём JWT токен для автоматического входа
         const token = jwt.sign(
             { 
                 id: user.id, 
                 username: user.username, 
-                isAdmin: user.is_admin 
+                isAdmin: user.is_admin || false
             },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
 
         // Получаем обновлённые данные пользователя
-        const { data: updatedUser } = await supabase
+        const { data: updatedUser, error: fetchUserError } = await supabase
             .from('users')
             .select('id, username, email, full_name, is_admin, email_verified')
             .eq('id', user.id)
             .single();
+
+        if (fetchUserError || !updatedUser) {
+            console.error('[confirm-email] Error fetching updated user:', fetchUserError);
+            // Используем данные из user, если не удалось получить обновлённые
+            const userData = {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                fullName: null,
+                isAdmin: user.is_admin || false,
+                emailVerified: true
+            };
+            
+            return res.json({
+                success: true,
+                message: 'Email успешно подтверждён',
+                token: token,
+                user: userData
+            });
+        }
 
         res.json({
             success: true,
@@ -718,7 +781,9 @@ app.post('/api/confirm-email', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Confirm email error:', error);
+        console.error('[confirm-email] Unexpected error:', error);
+        console.error('[confirm-email] Error stack:', error.stack);
+        console.error('[confirm-email] Error details:', JSON.stringify(error, null, 2));
         res.status(500).json({ 
             error: 'Ошибка подтверждения',
             message: error.message || 'Неизвестная ошибка'
