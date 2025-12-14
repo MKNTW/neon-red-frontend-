@@ -130,6 +130,9 @@ class NeonShop {
         this.pendingRegistrationToken = null; // Токен после подтверждения email
         this.pendingRegistrationUser = null; // Данные пользователя после подтверждения email
         this.isConfirmingCode = false; // Флаг для предотвращения повторных запросов подтверждения кода
+        this.pendingResetEmail = null; // Email для восстановления пароля
+        this.pendingResetUserId = null; // ID пользователя для восстановления пароля
+        this.resendResetTimer = null; // Таймер для повторной отправки кода восстановления
 
         // Автоматическое определение URL для API
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -1628,6 +1631,388 @@ class NeonShop {
         }
     }
     
+    // === ВОССТАНОВЛЕНИЕ ПАРОЛЯ ===
+    showForgotPassword() {
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('register-form').style.display = 'none';
+        document.getElementById('forgot-password-form').style.display = 'block';
+        document.getElementById('select-account-form').style.display = 'none';
+        document.getElementById('reset-password-form').style.display = 'none';
+        document.getElementById('auth-title').textContent = 'Восстановление пароля';
+        document.getElementById('auth-subtitle').textContent = 'Введите email для восстановления';
+        
+        // Очищаем поля
+        const emailInput = document.getElementById('forgot-email');
+        if (emailInput) emailInput.value = '';
+        const errorEl = document.getElementById('forgot-email-error');
+        if (errorEl) {
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+        }
+    }
+    
+    async sendPasswordResetCode() {
+        const emailInput = document.getElementById('forgot-email');
+        const errorEl = document.getElementById('forgot-email-error');
+        
+        if (!emailInput) {
+            this.showToast('Ошибка: поле ввода email не найдено', 'error');
+            return false;
+        }
+        
+        const email = emailInput.value.trim();
+        
+        // Валидация email
+        if (!email) {
+            if (errorEl) {
+                errorEl.textContent = 'Введите email';
+                errorEl.style.display = 'block';
+            }
+            this.showToast('Введите email', 'error');
+            return false;
+        }
+        
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            if (errorEl) {
+                errorEl.textContent = 'Неверный формат email';
+                errorEl.style.display = 'block';
+            }
+            this.showToast('Неверный формат email', 'error');
+            return false;
+        }
+        
+        if (errorEl) {
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+        }
+        
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email.toLowerCase() })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                const errorMsg = data?.error || data?.message || 'Ошибка отправки кода';
+                this.showToast(errorMsg, 'error');
+                if (errorEl) {
+                    errorEl.textContent = errorMsg;
+                    errorEl.style.display = 'block';
+                }
+                return false;
+            }
+            
+            // Если найдено несколько аккаунтов
+            if (data.accounts && data.accounts.length > 1) {
+                this.pendingResetEmail = email.toLowerCase();
+                this.showAccountSelection(data.accounts);
+                return true;
+            }
+            
+            // Если один аккаунт или список не передан
+            if (data.success || data.accounts?.length === 1) {
+                this.pendingResetEmail = email.toLowerCase();
+                this.pendingResetUserId = data.accounts?.[0]?.id || data.userId;
+                this.showResetPasswordForm();
+                return true;
+            }
+            
+            this.showToast('Ошибка: неожиданный ответ сервера', 'error');
+            return false;
+        } catch (error) {
+            hideLoadingIndicator();
+            let errorMessage = error.message || 'Ошибка отправки кода';
+            if (error.data) {
+                errorMessage = error.data.error || error.data.message || errorMessage;
+            }
+            this.showToast(errorMessage, 'error');
+            return false;
+        }
+    }
+    
+    showAccountSelection(accounts) {
+        document.getElementById('forgot-password-form').style.display = 'none';
+        document.getElementById('select-account-form').style.display = 'block';
+        document.getElementById('auth-title').textContent = 'Выберите аккаунт';
+        document.getElementById('auth-subtitle').textContent = 'Найдено несколько аккаунтов';
+        
+        const accountsList = document.getElementById('accounts-list');
+        if (!accountsList) return;
+        
+        accountsList.innerHTML = '';
+        accounts.forEach((account, index) => {
+            const accountDiv = document.createElement('div');
+            accountDiv.className = 'account-item';
+            accountDiv.style.cssText = 'padding: 15px; margin-bottom: 10px; background: rgba(255,255,255,0.05); border: 2px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.3s;';
+            accountDiv.innerHTML = `
+                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 5px;">${account.username}</div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary);">${account.email}</div>
+            `;
+            accountDiv.addEventListener('click', () => {
+                this.pendingResetUserId = account.id;
+                this.showResetPasswordForm();
+            });
+            accountDiv.addEventListener('mouseenter', () => {
+                accountDiv.style.borderColor = 'var(--neon-red)';
+                accountDiv.style.background = 'rgba(255,0,51,0.1)';
+            });
+            accountDiv.addEventListener('mouseleave', () => {
+                accountDiv.style.borderColor = 'var(--border-color)';
+                accountDiv.style.background = 'rgba(255,255,255,0.05)';
+            });
+            accountsList.appendChild(accountDiv);
+        });
+    }
+    
+    backToForgotPassword() {
+        this.showForgotPassword();
+    }
+    
+    showResetPasswordForm() {
+        document.getElementById('forgot-password-form').style.display = 'none';
+        document.getElementById('select-account-form').style.display = 'none';
+        document.getElementById('reset-password-form').style.display = 'block';
+        document.getElementById('auth-title').textContent = 'Смена пароля';
+        document.getElementById('auth-subtitle').textContent = 'Введите код и новый пароль';
+        
+        const emailDisplay = document.getElementById('reset-email-display');
+        if (emailDisplay && this.pendingResetEmail) {
+            emailDisplay.textContent = this.pendingResetEmail;
+        }
+        
+        // Очищаем поля
+        const codeInput = document.getElementById('reset-code');
+        const passwordInput = document.getElementById('reset-password');
+        const password2Input = document.getElementById('reset-password2');
+        if (codeInput) codeInput.value = '';
+        if (passwordInput) passwordInput.value = '';
+        if (password2Input) password2Input.value = '';
+        
+        // Запускаем таймер
+        this.startResendResetTimer();
+    }
+    
+    async confirmPasswordReset() {
+        const codeInput = document.getElementById('reset-code');
+        const passwordInput = document.getElementById('reset-password');
+        const password2Input = document.getElementById('reset-password2');
+        const codeError = document.getElementById('reset-code-error');
+        const passwordError = document.getElementById('reset-password-error');
+        
+        if (!codeInput || !passwordInput || !password2Input) {
+            this.showToast('Ошибка: поля не найдены', 'error');
+            return false;
+        }
+        
+        if (!this.pendingResetEmail || !this.pendingResetUserId) {
+            this.showToast('Ошибка: данные не найдены. Начните заново', 'error');
+            this.showForgotPassword();
+            return false;
+        }
+        
+        const code = codeInput.value.trim();
+        const password = passwordInput.value;
+        const password2 = password2Input.value;
+        
+        // Валидация кода
+        if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+            if (codeError) {
+                codeError.textContent = 'Введите 6-значный код';
+                codeError.style.display = 'block';
+            }
+            this.showToast('Введите 6-значный код', 'error');
+            return false;
+        }
+        
+        // Валидация пароля
+        if (!password || password.length < 6) {
+            if (passwordError) {
+                passwordError.textContent = 'Пароль должен быть не менее 6 символов';
+                passwordError.style.display = 'block';
+            }
+            this.showToast('Пароль должен быть не менее 6 символов', 'error');
+            return false;
+        }
+        
+        if (password !== password2) {
+            if (passwordError) {
+                passwordError.textContent = 'Пароли не совпадают';
+                passwordError.style.display = 'block';
+            }
+            this.showToast('Пароли не совпадают', 'error');
+            return false;
+        }
+        
+        // Подтверждение
+        const confirmed = await this.showConfirmDialog(
+            'Подтвердите изменение пароля',
+            'Вы уверены, что хотите изменить пароль?'
+        );
+        
+        if (!confirmed) {
+            return false;
+        }
+        
+        if (codeError) {
+            codeError.textContent = '';
+            codeError.style.display = 'none';
+        }
+        if (passwordError) {
+            passwordError.textContent = '';
+            passwordError.style.display = 'none';
+        }
+        
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: this.pendingResetEmail,
+                    userId: this.pendingResetUserId,
+                    code: code,
+                    password: password
+                })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                const errorMsg = data?.error || data?.message || 'Ошибка смены пароля';
+                this.showToast(errorMsg, 'error');
+                if (codeError && errorMsg.includes('код')) {
+                    codeError.textContent = errorMsg;
+                    codeError.style.display = 'block';
+                }
+                return false;
+            }
+            
+            if (data.success) {
+                this.showToast('Пароль успешно изменён! Выполняется вход...', 'success');
+                
+                // Автоматический вход
+                if (data.token && data.user) {
+                    this.user = data.user;
+                    this.token = data.token;
+                    localStorage.setItem('user', JSON.stringify(this.user));
+                    localStorage.setItem('token', this.token);
+                    this.updateAuthUI();
+                    this.closeAuthModal();
+                    await this.loadProducts();
+                } else {
+                    // Если токен не передан, предлагаем войти
+                    setTimeout(() => {
+                        showLoginForm();
+                        this.showToast('Теперь войдите с новым паролем', 'info');
+                    }, 2000);
+                }
+                
+                // Очищаем данные
+                this.pendingResetEmail = null;
+                this.pendingResetUserId = null;
+                if (this.resendResetTimer) {
+                    clearInterval(this.resendResetTimer);
+                    this.resendResetTimer = null;
+                }
+                
+                return true;
+            }
+            
+            this.showToast('Ошибка смены пароля', 'error');
+            return false;
+        } catch (error) {
+            hideLoadingIndicator();
+            let errorMessage = error.message || 'Ошибка смены пароля';
+            if (error.data) {
+                errorMessage = error.data.error || error.data.message || errorMessage;
+            }
+            this.showToast(errorMessage, 'error');
+            return false;
+        }
+    }
+    
+    async resendResetCode() {
+        if (!this.pendingResetEmail || !this.pendingResetUserId) {
+            this.showToast('Ошибка: данные не найдены', 'error');
+            return false;
+        }
+        
+        const resendBtn = document.getElementById('resend-reset-code-btn');
+        if (resendBtn && resendBtn.disabled) {
+            return false;
+        }
+        
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    email: this.pendingResetEmail,
+                    userId: this.pendingResetUserId
+                })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                const errorMsg = data?.error || data?.message || 'Ошибка отправки кода';
+                this.showToast(errorMsg, 'error');
+                return false;
+            }
+            
+            if (data.success) {
+                this.showToast('Новый код отправлен на email', 'success');
+                this.startResendResetTimer();
+                return true;
+            }
+            
+            this.showToast('Ошибка отправки кода', 'error');
+            return false;
+        } catch (error) {
+            hideLoadingIndicator();
+            let errorMessage = error.message || 'Ошибка отправки кода';
+            if (error.data) {
+                errorMessage = error.data.error || error.data.message || errorMessage;
+            }
+            this.showToast(errorMessage, 'error');
+            return false;
+        }
+    }
+    
+    startResendResetTimer() {
+        const resendBtn = document.getElementById('resend-reset-code-btn');
+        if (!resendBtn) return;
+        
+        let timer = 60;
+        resendBtn.disabled = true;
+        resendBtn.textContent = `Отправить код заново (${timer})`;
+        
+        if (this.resendResetTimer) {
+            clearInterval(this.resendResetTimer);
+        }
+        
+        this.resendResetTimer = setInterval(() => {
+            timer--;
+            resendBtn.textContent = `Отправить код заново (${timer})`;
+            
+            if (timer <= 0) {
+                clearInterval(this.resendResetTimer);
+                this.resendResetTimer = null;
+                resendBtn.textContent = 'Отправить код заново';
+                resendBtn.disabled = false;
+            }
+        }, 1000);
+    }
+    
     async deleteAccount() {
         // Первое подтверждение
         const firstConfirm = await this.showConfirmDialog(
@@ -1980,13 +2365,20 @@ class NeonShop {
 
     async processOrder(shippingAddress) {
         try {
+            if (!shippingAddress || shippingAddress.trim() === '') {
+                this.showToast('Введите адрес доставки', 'error');
+                return;
+            }
+            
+            showLoadingIndicator();
+            
             const orderData = {
                 items: this.cart.map(item => ({
                     id: item.id,
                     quantity: item.quantity,
                     price: item.price
                 })),
-                shippingAddress: shippingAddress,
+                shippingAddress: shippingAddress.trim(),
                 paymentMethod: 'card'
             };
 
@@ -2000,6 +2392,13 @@ class NeonShop {
             });
 
             const order = await response.json();
+            hideLoadingIndicator();
+
+            if (!response.ok) {
+                const errorMsg = order?.error || order?.message || 'Ошибка создания заказа';
+                this.showToast(errorMsg, 'error');
+                return;
+            }
 
             this.showToast(`Заказ #${order.id.substring(0, 8)} оформлен!`, 'success', 5000);
 
@@ -2009,13 +2408,22 @@ class NeonShop {
             this.updateCartInfo();
             this.renderCart();
 
+            // Обновляем заказы в профиле
+            await this.loadOrders();
+
             // Закрываем модальное окно с анимацией
             setTimeout(() => {
                 this.closeAllModals();
             }, 1500);
 
         } catch (error) {
-            this.showToast(error.message, 'error');
+            hideLoadingIndicator();
+            let errorMessage = error.message || 'Ошибка создания заказа';
+            if (error.data) {
+                errorMessage = error.data.error || error.data.message || errorMessage;
+            }
+            this.showToast(errorMessage, 'error');
+            console.error('Process order error:', error);
         }
     }
 
@@ -3633,17 +4041,35 @@ class NeonShop {
         orders.forEach(order => {
             const orderDiv = document.createElement('div');
             orderDiv.className = 'order-item';
+            orderDiv.style.cssText = 'padding: 15px; margin-bottom: 15px; background: rgba(255,255,255,0.05); border: 2px solid var(--border-color); border-radius: 10px; cursor: pointer; transition: all 0.3s;';
+            
+            orderDiv.addEventListener('click', () => {
+                this.showOrderDetails(order);
+            });
+            
+            orderDiv.addEventListener('mouseenter', () => {
+                orderDiv.style.borderColor = 'var(--neon-red)';
+                orderDiv.style.background = 'rgba(255,0,51,0.1)';
+            });
+            
+            orderDiv.addEventListener('mouseleave', () => {
+                orderDiv.style.borderColor = 'var(--border-color)';
+                orderDiv.style.background = 'rgba(255,255,255,0.05)';
+            });
             
             const orderId = document.createElement('p');
             const strong = document.createElement('strong');
             strong.textContent = `Заказ #${escapeHtml(order.id.substring(0, 8))}`;
+            strong.style.color = 'var(--neon-red)';
             orderId.appendChild(strong);
             
             const date = document.createElement('p');
             date.innerHTML = `Дата: ${escapeHtml(new Date(order.created_at).toLocaleDateString('ru-RU'))}`;
+            date.style.marginTop = '8px';
             
             const amount = document.createElement('p');
             amount.innerHTML = `Сумма: <strong>${escapeHtml(order.total_amount)} ₽</strong>`;
+            amount.style.marginTop = '8px';
             
             const status = document.createElement('p');
             const statusSpan = document.createElement('span');
@@ -3651,6 +4077,7 @@ class NeonShop {
             statusSpan.style.color = '#00ff88';
             status.innerHTML = 'Статус: ';
             status.appendChild(statusSpan);
+            status.style.marginTop = '8px';
             
             orderDiv.appendChild(orderId);
             orderDiv.appendChild(date);
@@ -3659,6 +4086,312 @@ class NeonShop {
             
             ordersList.appendChild(orderDiv);
         });
+    }
+    
+    async showOrderDetails(order) {
+        // Загружаем полную информацию о заказе
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/orders/${order.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+            
+            const fullOrder = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                this.showToast(fullOrder.error || 'Ошибка загрузки заказа', 'error');
+                return;
+            }
+            
+            this.renderOrderDetailsModal(fullOrder);
+        } catch (error) {
+            hideLoadingIndicator();
+            this.showToast(error.message || 'Ошибка загрузки заказа', 'error');
+        }
+    }
+    
+    renderOrderDetailsModal(order) {
+        // Создаем модальное окно с деталями заказа
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        modal.id = 'order-details-modal';
+        
+        const content = document.createElement('div');
+        content.className = 'modal-content';
+        content.style.maxWidth = '600px';
+        content.style.maxHeight = '90vh';
+        content.style.overflowY = 'auto';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'close';
+        closeBtn.textContent = '×';
+        closeBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        const title = document.createElement('h2');
+        title.textContent = `Заказ #${order.id.substring(0, 8)}`;
+        title.style.marginBottom = '20px';
+        title.style.color = 'var(--neon-red)';
+        
+        // Информация о заказе
+        const infoDiv = document.createElement('div');
+        infoDiv.style.marginBottom = '20px';
+        
+        const statusP = document.createElement('p');
+        statusP.innerHTML = `<strong>Статус:</strong> <span style="color: #00ff88;">${escapeHtml(order.status)}</span>`;
+        statusP.style.marginBottom = '10px';
+        
+        const dateP = document.createElement('p');
+        dateP.innerHTML = `<strong>Дата:</strong> ${escapeHtml(new Date(order.created_at).toLocaleString('ru-RU'))}`;
+        dateP.style.marginBottom = '10px';
+        
+        const amountP = document.createElement('p');
+        amountP.innerHTML = `<strong>Сумма:</strong> ${escapeHtml(order.total_amount)} ₽`;
+        amountP.style.marginBottom = '10px';
+        
+        // Адрес доставки (редактируемый)
+        const addressDiv = document.createElement('div');
+        addressDiv.style.marginBottom = '15px';
+        addressDiv.style.padding = '15px';
+        addressDiv.style.background = 'rgba(255,255,255,0.05)';
+        addressDiv.style.borderRadius = '8px';
+        
+        const addressLabel = document.createElement('label');
+        addressLabel.innerHTML = '<strong>Адрес доставки:</strong>';
+        addressLabel.style.display = 'block';
+        addressLabel.style.marginBottom = '8px';
+        
+        const addressInput = document.createElement('input');
+        addressInput.type = 'text';
+        addressInput.value = order.shipping_address || '';
+        addressInput.style.cssText = 'width: 100%; padding: 10px; border-radius: 8px; border: 2px solid var(--border-color); background: var(--card-bg); color: var(--text-primary); margin-bottom: 10px;';
+        
+        const saveAddressBtn = document.createElement('button');
+        saveAddressBtn.textContent = 'Сохранить адрес';
+        saveAddressBtn.className = 'auth-btn primary-btn';
+        saveAddressBtn.style.cssText = 'width: 100%; padding: 10px;';
+        saveAddressBtn.addEventListener('click', async () => {
+            await this.updateOrderAddress(order.id, addressInput.value);
+        });
+        
+        addressDiv.appendChild(addressLabel);
+        addressDiv.appendChild(addressInput);
+        addressDiv.appendChild(saveAddressBtn);
+        
+        // Время доставки (если есть поле)
+        let deliveryTimeDiv = null;
+        if (order.delivery_time) {
+            deliveryTimeDiv = document.createElement('div');
+            deliveryTimeDiv.style.marginBottom = '15px';
+            deliveryTimeDiv.style.padding = '15px';
+            deliveryTimeDiv.style.background = 'rgba(255,255,255,0.05)';
+            deliveryTimeDiv.style.borderRadius = '8px';
+            
+            const timeLabel = document.createElement('label');
+            timeLabel.innerHTML = '<strong>Время доставки:</strong>';
+            timeLabel.style.display = 'block';
+            timeLabel.style.marginBottom = '8px';
+            
+            const timeInput = document.createElement('input');
+            timeInput.type = 'datetime-local';
+            timeInput.value = order.delivery_time ? new Date(order.delivery_time).toISOString().slice(0, 16) : '';
+            timeInput.style.cssText = 'width: 100%; padding: 10px; border-radius: 8px; border: 2px solid var(--border-color); background: var(--card-bg); color: var(--text-primary); margin-bottom: 10px;';
+            
+            const saveTimeBtn = document.createElement('button');
+            saveTimeBtn.textContent = 'Сохранить время';
+            saveTimeBtn.className = 'auth-btn primary-btn';
+            saveTimeBtn.style.cssText = 'width: 100%; padding: 10px;';
+            saveTimeBtn.addEventListener('click', async () => {
+                await this.updateOrderDeliveryTime(order.id, timeInput.value);
+            });
+            
+            deliveryTimeDiv.appendChild(timeLabel);
+            deliveryTimeDiv.appendChild(timeInput);
+            deliveryTimeDiv.appendChild(saveTimeBtn);
+        }
+        
+        // Товары в заказе
+        const itemsDiv = document.createElement('div');
+        itemsDiv.style.marginBottom = '20px';
+        
+        const itemsTitle = document.createElement('h3');
+        itemsTitle.textContent = 'Товары:';
+        itemsTitle.style.marginBottom = '15px';
+        
+        itemsDiv.appendChild(itemsTitle);
+        
+        if (order.order_items && order.order_items.length > 0) {
+            order.order_items.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.style.cssText = 'padding: 12px; margin-bottom: 10px; background: rgba(255,255,255,0.03); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;';
+                
+                const itemInfo = document.createElement('div');
+                const productName = item.products ? item.products.title : `Товар #${item.product_id}`;
+                itemInfo.innerHTML = `<strong>${escapeHtml(productName)}</strong><br><span style="color: #888; font-size: 0.9rem;">${item.quantity} × ${item.price_at_time} ₽</span>`;
+                
+                const itemTotal = document.createElement('div');
+                itemTotal.innerHTML = `<strong>${item.quantity * item.price_at_time} ₽</strong>`;
+                
+                itemDiv.appendChild(itemInfo);
+                itemDiv.appendChild(itemTotal);
+                itemsDiv.appendChild(itemDiv);
+            });
+        }
+        
+        // Кнопки действий
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '10px';
+        actionsDiv.style.marginTop = '20px';
+        
+        // Кнопка отмены заказа (только если статус pending)
+        if (order.status === 'pending') {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Отменить заказ';
+            cancelBtn.className = 'auth-btn secondary-btn';
+            cancelBtn.style.cssText = 'flex: 1; padding: 12px;';
+            cancelBtn.addEventListener('click', async () => {
+                const confirmed = await this.showConfirmDialog(
+                    'Отменить заказ?',
+                    'Вы уверены, что хотите отменить этот заказ?'
+                );
+                if (confirmed) {
+                    await this.cancelOrder(order.id);
+                    modal.remove();
+                }
+            });
+            actionsDiv.appendChild(cancelBtn);
+        }
+        
+        const closeDetailsBtn = document.createElement('button');
+        closeDetailsBtn.textContent = 'Закрыть';
+        closeDetailsBtn.className = 'auth-btn primary-btn';
+        closeDetailsBtn.style.cssText = 'flex: 1; padding: 12px;';
+        closeDetailsBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+        actionsDiv.appendChild(closeDetailsBtn);
+        
+        // Собираем все вместе
+        infoDiv.appendChild(statusP);
+        infoDiv.appendChild(dateP);
+        infoDiv.appendChild(amountP);
+        
+        content.appendChild(closeBtn);
+        content.appendChild(title);
+        content.appendChild(infoDiv);
+        content.appendChild(addressDiv);
+        if (deliveryTimeDiv) {
+            content.appendChild(deliveryTimeDiv);
+        }
+        content.appendChild(itemsDiv);
+        content.appendChild(actionsDiv);
+        
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+        
+        // Закрытие по клику вне модалки
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+    
+    async updateOrderAddress(orderId, newAddress) {
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/orders/${orderId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify({ shipping_address: newAddress })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                this.showToast(data.error || 'Ошибка обновления адреса', 'error');
+                return false;
+            }
+            
+            this.showToast('Адрес успешно обновлён', 'success');
+            // Обновляем заказы
+            await this.loadOrders();
+            return true;
+        } catch (error) {
+            hideLoadingIndicator();
+            this.showToast(error.message || 'Ошибка обновления адреса', 'error');
+            return false;
+        }
+    }
+    
+    async updateOrderDeliveryTime(orderId, newTime) {
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/orders/${orderId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.token}`
+                },
+                body: JSON.stringify({ delivery_time: newTime })
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                this.showToast(data.error || 'Ошибка обновления времени', 'error');
+                return false;
+            }
+            
+            this.showToast('Время доставки успешно обновлено', 'success');
+            // Обновляем заказы
+            await this.loadOrders();
+            return true;
+        } catch (error) {
+            hideLoadingIndicator();
+            this.showToast(error.message || 'Ошибка обновления времени', 'error');
+            return false;
+        }
+    }
+    
+    async cancelOrder(orderId) {
+        try {
+            showLoadingIndicator();
+            const response = await safeFetch(`${this.API_BASE_URL}/orders/${orderId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`
+                }
+            });
+            
+            const data = await response.json();
+            hideLoadingIndicator();
+            
+            if (!response.ok) {
+                this.showToast(data.error || 'Ошибка отмены заказа', 'error');
+                return false;
+            }
+            
+            this.showToast('Заказ успешно отменён', 'success');
+            // Обновляем заказы
+            await this.loadOrders();
+            return true;
+        } catch (error) {
+            hideLoadingIndicator();
+            this.showToast(error.message || 'Ошибка отмены заказа', 'error');
+            return false;
+        }
     }
 }
 

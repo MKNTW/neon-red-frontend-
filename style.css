@@ -1728,6 +1728,138 @@ button:focus-visible {
     border-color: var(--neon-red);
 }
 
+/* Улучшенные стили для формы подтверждения email */
+.email-confirm-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.email-confirm-btn {
+    flex: 1;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, var(--neon-red), var(--neon-pink));
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(255, 0, 51, 0.4);
+}
+
+.email-confirm-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 0, 51, 0.6);
+}
+
+.email-confirm-btn:active {
+    transform: translateY(0);
+}
+
+.email-confirm-btn span {
+    font-size: 1.2rem;
+}
+
+.email-cancel-btn {
+    flex: 1;
+    padding: 14px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.email-cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--neon-red);
+    color: var(--neon-red);
+}
+
+.email-cancel-btn span {
+    font-size: 1.1rem;
+}
+
+.email-resend-container {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.profile-resend-btn {
+    padding: 10px 20px;
+    background: transparent;
+    color: var(--neon-blue);
+    border: 2px solid var(--neon-blue);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+}
+
+.profile-resend-btn:hover:not(:disabled) {
+    background: rgba(0, 153, 255, 0.1);
+    box-shadow: 0 0 15px rgba(0, 153, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.profile-resend-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+.profile-resend-btn span {
+    font-size: 1rem;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.profile-resend-btn:not(:disabled) span {
+    animation: none;
+}
+
+@media (max-width: 768px) {
+    .email-confirm-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .email-confirm-btn,
+    .email-cancel-btn {
+        width: 100%;
+    }
+    
+    .profile-resend-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 .profile-actions {
     margin-top: auto;
     padding-top: 20px;

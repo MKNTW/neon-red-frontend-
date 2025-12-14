@@ -1297,6 +1297,220 @@ app.post('/api/profile/confirm-email-change', authenticateToken, async (req, res
     }
 });
 
+// === ВОССТАНОВЛЕНИЕ ПАРОЛЯ ===
+
+// Запрос кода для восстановления пароля
+app.post('/api/forgot-password', async (req, res) => {
+    try {
+        const { email, userId } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ error: 'Требуется email' });
+        }
+        
+        const cleanEmail = email.trim().toLowerCase();
+        
+        // Валидация email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanEmail)) {
+            return res.status(400).json({ error: 'Неверный формат email' });
+        }
+        
+        // Находим все аккаунты с этим email
+        const { data: users, error: usersError } = await supabase
+            .from('users')
+            .select('id, username, email')
+            .eq('email', cleanEmail);
+        
+        if (usersError) {
+            console.error('Error finding users:', usersError);
+            return res.status(500).json({ error: 'Ошибка при поиске пользователей' });
+        }
+        
+        if (!users || users.length === 0) {
+            return res.status(404).json({ error: 'Аккаунт с таким email не найден' });
+        }
+        
+        // Если передан userId, используем его, иначе берем первый аккаунт
+        let targetUser = userId ? users.find(u => u.id === userId) : users[0];
+        if (!targetUser) {
+            targetUser = users[0];
+        }
+        
+        // Если несколько аккаунтов и userId не передан, возвращаем список
+        if (users.length > 1 && !userId) {
+            return res.json({
+                success: true,
+                accounts: users.map(u => ({
+                    id: u.id,
+                    username: u.username,
+                    email: u.email
+                }))
+            });
+        }
+        
+        // Проверяем последнюю отправку кода
+        const { data: lastCode } = await supabase
+            .from('email_verifications')
+            .select('*')
+            .eq('user_id', targetUser.id)
+            .eq('email', cleanEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        
+        if (lastCode && lastCode.last_sent_at) {
+            const diff = Date.now() - new Date(lastCode.last_sent_at).getTime();
+            if (diff < 60000) {
+                const secondsLeft = Math.ceil((60000 - diff) / 1000);
+                return res.status(429).json({
+                    error: 'Подождите перед повторной отправкой',
+                    message: `Подождите ${secondsLeft} секунд перед повторной отправкой`
+                });
+            }
+            
+            // Удаляем старый код
+            await supabase
+                .from('email_verifications')
+                .delete()
+                .eq('id', lastCode.id);
+        }
+        
+        // Генерируем код
+        const code = generateCode();
+        const codeHash = await bcrypt.hash(code, 10);
+        
+        // Сохраняем код
+        const { error: insertError } = await supabase
+            .from('email_verifications')
+            .insert([{
+                user_id: targetUser.id,
+                email: cleanEmail,
+                code_hash: codeHash,
+                expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+                last_sent_at: new Date().toISOString()
+            }]);
+        
+        if (insertError) {
+            console.error('Error saving reset code:', insertError);
+            return res.status(500).json({ error: 'Ошибка при создании кода' });
+        }
+        
+        // Отправляем код
+        try {
+            await sendVerificationCode(cleanEmail, code);
+        } catch (emailError) {
+            console.error('Error sending email:', emailError);
+            await supabase
+                .from('email_verifications')
+                .delete()
+                .eq('code_hash', codeHash);
+            return res.status(500).json({ error: 'Ошибка при отправке кода на email' });
+        }
+        
+        res.json({
+            success: true,
+            message: 'Код подтверждения отправлен на email',
+            userId: targetUser.id
+        });
+        
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ error: 'Ошибка отправки кода' });
+    }
+});
+
+// Подтверждение смены пароля
+app.post('/api/reset-password', async (req, res) => {
+    try {
+        const { email, userId, code, password } = req.body;
+        
+        if (!email || !userId || !code || !password) {
+            return res.status(400).json({ error: 'Требуются email, userId, код и пароль' });
+        }
+        
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanCode = code.trim();
+        
+        // Валидация пароля
+        if (typeof password !== 'string' || password.length < 6 || password.length > 100) {
+            return res.status(400).json({ error: 'Пароль должен быть от 6 до 100 символов' });
+        }
+        
+        // Находим код подтверждения
+        const { data: record } = await supabase
+            .from('email_verifications')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('email', cleanEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        
+        if (!record) {
+            return res.status(400).json({ error: 'Код не найден' });
+        }
+        
+        if (new Date(record.expires_at) < new Date()) {
+            return res.status(400).json({ error: 'Код истёк' });
+        }
+        
+        const valid = await bcrypt.compare(cleanCode, record.code_hash);
+        if (!valid) {
+            return res.status(400).json({ error: 'Неверный код' });
+        }
+        
+        // Обновляем пароль
+        const passwordHash = await bcrypt.hash(password, 10);
+        const { data: updatedUser, error: updateError } = await supabase
+            .from('users')
+            .update({ password_hash: passwordHash })
+            .eq('id', userId)
+            .select('id, username, email, full_name, is_admin, email_verified')
+            .single();
+        
+        if (updateError) {
+            console.error('Error updating password:', updateError);
+            return res.status(500).json({ error: 'Ошибка при обновлении пароля' });
+        }
+        
+        // Удаляем использованный код
+        await supabase
+            .from('email_verifications')
+            .delete()
+            .eq('id', record.id);
+        
+        // Создаём JWT токен для автоматического входа
+        const token = jwt.sign(
+            { 
+                id: updatedUser.id, 
+                username: updatedUser.username, 
+                isAdmin: updatedUser.is_admin 
+            },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+        
+        res.json({
+            success: true,
+            message: 'Пароль успешно изменён',
+            token: token,
+            user: {
+                id: updatedUser.id,
+                username: updatedUser.username,
+                email: updatedUser.email,
+                fullName: updatedUser.full_name,
+                isAdmin: updatedUser.is_admin,
+                emailVerified: updatedUser.email_verified
+            }
+        });
+        
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ error: 'Ошибка смены пароля' });
+    }
+});
+
 // Загрузка аватара
 app.post('/api/profile/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
     try {
@@ -2153,6 +2367,142 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Orders error:', error);
         res.status(500).json({ error: 'Ошибка загрузки заказов' });
+    }
+});
+
+// Получить детальную информацию о заказе
+app.get('/api/orders/:id', authenticateToken, async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        
+        const { data: order, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (
+                    *,
+                    products (*)
+                )
+            `)
+            .eq('id', orderId)
+            .eq('user_id', req.user.id)
+            .single();
+
+        if (error) throw error;
+        
+        if (!order) {
+            return res.status(404).json({ error: 'Заказ не найден' });
+        }
+
+        res.json(order);
+
+    } catch (error) {
+        console.error('Order details error:', error);
+        res.status(500).json({ error: 'Ошибка загрузки заказа' });
+    }
+});
+
+// Обновить заказ (адрес, время доставки)
+app.put('/api/orders/:id', authenticateToken, async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const { shipping_address, delivery_time } = req.body;
+        
+        // Проверяем, что заказ принадлежит пользователю
+        const { data: existingOrder, error: checkError } = await supabase
+            .from('orders')
+            .select('id, status, user_id')
+            .eq('id', orderId)
+            .single();
+        
+        if (checkError || !existingOrder) {
+            return res.status(404).json({ error: 'Заказ не найден' });
+        }
+        
+        if (existingOrder.user_id !== req.user.id) {
+            return res.status(403).json({ error: 'Нет доступа к этому заказу' });
+        }
+        
+        // Можно обновлять только если заказ в статусе pending
+        if (existingOrder.status !== 'pending') {
+            return res.status(400).json({ error: 'Можно изменять только заказы со статусом "pending"' });
+        }
+        
+        const updates = {};
+        if (shipping_address !== undefined) {
+            updates.shipping_address = shipping_address;
+        }
+        if (delivery_time !== undefined) {
+            updates.delivery_time = delivery_time;
+        }
+        
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: 'Нет данных для обновления' });
+        }
+        
+        const { data: updatedOrder, error: updateError } = await supabase
+            .from('orders')
+            .update(updates)
+            .eq('id', orderId)
+            .select(`
+                *,
+                order_items (
+                    *,
+                    products (*)
+                )
+            `)
+            .single();
+        
+        if (updateError) throw updateError;
+        
+        res.json(updatedOrder);
+
+    } catch (error) {
+        console.error('Update order error:', error);
+        res.status(500).json({ error: 'Ошибка обновления заказа' });
+    }
+});
+
+// Отменить заказ
+app.delete('/api/orders/:id', authenticateToken, async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        
+        // Проверяем, что заказ принадлежит пользователю
+        const { data: existingOrder, error: checkError } = await supabase
+            .from('orders')
+            .select('id, status, user_id')
+            .eq('id', orderId)
+            .single();
+        
+        if (checkError || !existingOrder) {
+            return res.status(404).json({ error: 'Заказ не найден' });
+        }
+        
+        if (existingOrder.user_id !== req.user.id) {
+            return res.status(403).json({ error: 'Нет доступа к этому заказу' });
+        }
+        
+        // Можно отменять только если заказ в статусе pending
+        if (existingOrder.status !== 'pending') {
+            return res.status(400).json({ error: 'Можно отменять только заказы со статусом "pending"' });
+        }
+        
+        // Обновляем статус на cancelled
+        const { data: cancelledOrder, error: updateError } = await supabase
+            .from('orders')
+            .update({ status: 'cancelled' })
+            .eq('id', orderId)
+            .select()
+            .single();
+        
+        if (updateError) throw updateError;
+        
+        res.json({ success: true, message: 'Заказ отменён', order: cancelledOrder });
+
+    } catch (error) {
+        console.error('Cancel order error:', error);
+        res.status(500).json({ error: 'Ошибка отмены заказа' });
     }
 });
 

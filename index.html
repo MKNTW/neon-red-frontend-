@@ -48,9 +48,58 @@
                 </div>
                 <button type="submit" class="auth-btn primary-btn">Войти</button>
                 <div class="auth-switch">
-                    <p>Нет аккаунта? <a href="#" onclick="showRegisterForm()">Зарегистрироваться</a></p>
+                    <p><a href="#" onclick="shop.showForgotPassword()" style="color: var(--neon-blue); text-decoration: none; font-size: 0.9rem;">Забыли пароль?</a></p>
+                    <p style="margin-top: 10px;">Нет аккаунта? <a href="#" onclick="showRegisterForm()">Зарегистрироваться</a></p>
                 </div>
             </form>
+
+            <!-- Форма восстановления пароля -->
+            <div id="forgot-password-form" class="auth-form" style="display: none;">
+                <div class="input-group">
+                    <label for="forgot-email">Email</label>
+                    <input type="email" id="forgot-email" placeholder="Введите email для восстановления" required>
+                    <div class="input-error" id="forgot-email-error"></div>
+                </div>
+                <button type="button" class="auth-btn primary-btn" onclick="shop.sendPasswordResetCode()">Отправить код</button>
+                <div class="auth-switch">
+                    <p><a href="#" onclick="showLoginForm()">Вернуться к входу</a></p>
+                </div>
+            </div>
+
+            <!-- Форма выбора аккаунта -->
+            <div id="select-account-form" class="auth-form" style="display: none;">
+                <p style="color: #888; margin-bottom: 15px;">Найдено несколько аккаунтов с этим email. Выберите аккаунт:</p>
+                <div id="accounts-list" style="margin-bottom: 20px;"></div>
+                <button type="button" class="auth-btn secondary-btn" onclick="shop.backToForgotPassword()">Назад</button>
+            </div>
+
+            <!-- Форма смены пароля -->
+            <div id="reset-password-form" class="auth-form" style="display: none;">
+                <p style="color: #888; margin-bottom: 15px;">Код подтверждения отправлен на <strong id="reset-email-display" style="color: #ff0033;"></strong></p>
+                <div class="input-group">
+                    <label for="reset-code">Код подтверждения</label>
+                    <input type="text" id="reset-code" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" style="text-align: center; letter-spacing: 8px; font-size: 18px; font-weight: bold;">
+                    <div class="input-error" id="reset-code-error"></div>
+                </div>
+                <div class="input-group">
+                    <label for="reset-password">Новый пароль</label>
+                    <input type="password" id="reset-password" placeholder="Введите новый пароль (минимум 6 символов)" required>
+                </div>
+                <div class="input-group">
+                    <label for="reset-password2">Повторите пароль</label>
+                    <input type="password" id="reset-password2" placeholder="Повторите пароль" required>
+                    <div class="input-error" id="reset-password-error"></div>
+                </div>
+                <button type="button" class="auth-btn primary-btn" onclick="shop.confirmPasswordReset()">Изменить пароль</button>
+                <div style="margin-top: 15px; text-align: center;">
+                    <button type="button" id="resend-reset-code-btn" class="auth-btn secondary-btn" onclick="shop.resendResetCode()" style="font-size: 14px; padding: 8px 16px;">
+                        Отправить код заново
+                    </button>
+                </div>
+                <div class="auth-switch">
+                    <p><a href="#" onclick="showLoginForm()">Вернуться к входу</a></p>
+                </div>
+            </div>
 
             <form id="register-form" class="auth-form register-form-steps" style="display: none;">
                 <!-- Шаг 1: Имя пользователя -->
@@ -244,16 +293,20 @@
                             </div>
                         </div>
                         <div class="profile-edit-form" id="edit-email-code-form" style="display: none;">
-                            <p style="color: #888; font-size: 14px; margin-bottom: 10px;">Код подтверждения отправлен на <strong id="new-email-display"></strong></p>
-                            <input type="text" id="edit-email-code-input" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}">
+                            <p style="color: #888; font-size: 14px; margin-bottom: 15px; line-height: 1.5;">Код подтверждения отправлен на <strong id="new-email-display" style="color: #ff0033;"></strong></p>
+                            <input type="text" id="edit-email-code-input" placeholder="Введите 6-значный код" maxlength="6" pattern="[0-9]{6}" style="text-align: center; letter-spacing: 8px; font-size: 18px; font-weight: bold;">
                             <div class="input-error" id="email-code-error"></div>
-                            <div class="profile-edit-actions">
-                                <button class="profile-save-btn" onclick="shop.confirmEmailChange()">Подтвердить</button>
-                                <button class="profile-cancel-btn" onclick="shop.cancelEmailChange()">Отмена</button>
+                            <div class="profile-edit-actions email-confirm-actions">
+                                <button type="button" class="profile-save-btn email-confirm-btn" onclick="shop.confirmEmailChange()">
+                                    <span>✓</span> Подтвердить
+                                </button>
+                                <button type="button" class="profile-cancel-btn email-cancel-btn" onclick="shop.cancelEmailChange()">
+                                    <span>✕</span> Отмена
+                                </button>
                             </div>
-                            <div style="margin-top: 10px; text-align: center;">
-                                <button type="button" id="resend-email-change-btn" class="profile-cancel-btn" onclick="shop.resendEmailChangeCode()" style="font-size: 12px; padding: 6px 12px;">
-                                    Отправить код заново
+                            <div class="email-resend-container">
+                                <button type="button" id="resend-email-change-btn" class="profile-resend-btn" onclick="shop.resendEmailChangeCode()">
+                                    <span>↻</span> Отправить код заново
                                 </button>
                             </div>
                         </div>
