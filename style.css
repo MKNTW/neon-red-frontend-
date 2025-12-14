@@ -2689,6 +2689,7 @@ footer p {
         padding: 14px 20px;
         font-size: 1rem;
         min-height: 44px;
+        margin-top: 12px;
     }
 
     .loading {
