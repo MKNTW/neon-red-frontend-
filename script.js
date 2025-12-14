@@ -63,7 +63,8 @@ async function safeFetch(url, options = {}) {
     try {
         const response = await fetch(url, {
             ...options,
-            signal: controller.signal
+            signal: controller.signal,
+            credentials: 'include'
         });
         
         clearTimeout(timeoutId);
@@ -1938,7 +1939,7 @@ class NeonShop {
                     e.preventDefault();
                     const form = document.getElementById('register-form');
                     if (form) {
-                        form.dispatchEvent(new Event('submit'));
+                        form.requestSubmit();
                     }
                 }
             });
