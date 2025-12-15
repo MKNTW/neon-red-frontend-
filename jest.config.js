@@ -3,7 +3,7 @@ module.exports = {
     testEnvironment: 'node',
     testMatch: ['**/tests/**/*.test.js'],
     collectCoverageFrom: [
-        'server.js',
+        'server.cjs',
         'js/**/*.js'
     ],
     coverageDirectory: 'coverage',

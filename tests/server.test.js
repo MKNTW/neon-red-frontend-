@@ -5,7 +5,7 @@ describe('API Endpoints', () => {
     test('should have products endpoint', () => {
         // В реальном проекте здесь будет тест с supertest
         // const request = require('supertest');
-        // const app = require('../server.js');
+        // const app = require('../server.cjs');
         // 
         // const res = await request(app)
         //     .get('/api/products')

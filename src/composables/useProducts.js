@@ -30,7 +30,10 @@ export function useProducts() {
 
       return true
     } catch (error) {
-      showToast(error.message || 'Ошибка загрузки товаров', 'error')
+      // Не показываем toast для ошибок подключения (уже показан в useApi)
+      if (!error.isConnectionError) {
+        showToast(error.message || 'Ошибка загрузки товаров', 'error')
+      }
       return false
     } finally {
       loading.value = false

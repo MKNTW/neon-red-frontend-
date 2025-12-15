@@ -117,6 +117,30 @@ export function useApi() {
       })
       return await response.json()
     } catch (error) {
+      // Проверяем на ошибку подключения к серверу
+      const isConnectionError = 
+        error.message?.includes('ERR_CONNECTION_REFUSED') ||
+        error.message?.includes('Failed to fetch') ||
+        error.message?.includes('NetworkError') ||
+        error.name === 'TypeError' ||
+        error.status === 0
+      
+      if (isConnectionError) {
+        // Показываем toast только один раз для ошибок подключения
+        const connectionErrorShown = sessionStorage.getItem('connection_error_shown')
+        if (!connectionErrorShown) {
+          showToast('Не удалось подключиться к серверу. Убедитесь, что backend запущен на порту 3001', 'error', 5000)
+          sessionStorage.setItem('connection_error_shown', 'true')
+          // Сбрасываем флаг через 10 секунд
+          setTimeout(() => {
+            sessionStorage.removeItem('connection_error_shown')
+          }, 10000)
+        }
+        const connectionError = new Error('Не удалось подключиться к серверу')
+        connectionError.isConnectionError = true
+        throw connectionError
+      }
+      
       const errorMessage = error.data?.error || error.data?.message || error.message || 'Ошибка запроса'
       showToast(errorMessage, 'error')
       throw error

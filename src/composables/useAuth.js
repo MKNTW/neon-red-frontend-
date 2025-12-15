@@ -44,6 +44,8 @@ export function useAuth() {
 
       return false
     } catch (error) {
+      // Не показываем дополнительный toast для ошибок подключения
+      // (уже показан в useApi)
       return false
     }
   }
@@ -64,6 +66,7 @@ export function useAuth() {
       }
       return false
     } catch (error) {
+      // Тихая проверка токена - не показываем ошибки подключения
       return false
     }
   }

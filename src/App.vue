@@ -1,5 +1,6 @@
 <template>
   <div id="app">
+    <ConnectionStatus />
     <ToastContainer />
     <AgeVerification />
 
@@ -49,6 +50,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useCart } from './composables/useCart'
 import { useProducts } from './composables/useProducts'
+import ConnectionStatus from './components/ConnectionStatus.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import AgeVerification from './components/AgeVerification.vue'
 import Header from './components/Header.vue'
