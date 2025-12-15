@@ -30,30 +30,21 @@ export class ProductsModule {
         }
     }
 
-    async loadProducts(page = 1, useCache = true) {
+    async loadProducts(page = 1, useCache = false) {
         const productsContainer = document.getElementById('products');
         if (!productsContainer) return;
         
-        const PRODUCTS_CACHE_TTL_MS = 5 * 60 * 1000;
+        // Всегда загружаем товары из БД, кэш не используется
+        // Кэш отключен для обеспечения актуальности данных
         const CACHE_KEY = 'products_cache';
         const CACHE_TIMESTAMP_KEY = 'products_cache_timestamp';
         
-        if (useCache && page === 1) {
-            try {
-                const cached = localStorage.getItem(CACHE_KEY);
-                const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-                
-                if (cached && timestamp && Date.now() - parseInt(timestamp) < PRODUCTS_CACHE_TTL_MS) {
-                    const cachedData = JSON.parse(cached);
-                    this.shop.products = cachedData.products || cachedData;
-                    this.shop.currentPage = cachedData.page || 1;
-                    this.shop.totalPages = cachedData.totalPages || 1;
-                    this.renderProducts();
-                    return;
-                }
-            } catch (e) {
-                console.warn('Cache read error:', e);
-            }
+        // Очищаем кэш при каждой загрузке для гарантии свежих данных
+        try {
+            localStorage.removeItem(CACHE_KEY);
+            localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+        } catch (e) {
+            console.warn('Cache clear error:', e);
         }
         
         this.renderSkeletonProducts(6);
@@ -77,19 +68,7 @@ export class ProductsModule {
                 this.shop.totalProducts = data.length;
             }
             
-            if (page === 1) {
-                try {
-                    localStorage.setItem(CACHE_KEY, JSON.stringify({
-                        products: this.shop.products,
-                        page: this.shop.currentPage,
-                        totalPages: this.shop.totalPages,
-                        total: this.shop.totalProducts
-                    }));
-                    localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-                } catch (e) {
-                    console.warn('Cache write error:', e);
-                }
-            }
+            // Кэш не сохраняется - товары всегда загружаются из БД
             
             this.renderProducts();
             this.renderPagination();

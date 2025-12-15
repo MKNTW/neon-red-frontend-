@@ -40,7 +40,8 @@ export class NeonShop {
         this.authModule.updateAuthUI();
         this.setupEventListeners();
         
-        const promises = [this.productsModule.loadProducts()];
+        // Всегда загружаем товары из БД без кэша
+        const promises = [this.productsModule.loadProducts(1, false)];
         if (this.token) {
             promises.push(this.authModule.validateToken());
         }
@@ -130,7 +131,8 @@ export class NeonShop {
     }
 
     // Методы для совместимости со старым кодом
-    loadProducts(page = 1, useCache = true) {
+    loadProducts(page = 1, useCache = false) {
+        // По умолчанию не используем кэш для актуальности данных
         return this.productsModule.loadProducts(page, useCache);
     }
 

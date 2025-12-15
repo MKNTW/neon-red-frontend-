@@ -97,7 +97,7 @@ export class AuthModule {
             showToast('Вход выполнен успешно!', 'success');
             this.closeAuthModal();
             
-            await this.shop.productsModule.loadProducts();
+            await this.shop.productsModule.loadProducts(1, false);
 
             return true;
 
@@ -461,7 +461,7 @@ export class AuthModule {
                 this.updateAuthUI();
                 showToast('Регистрация завершена! Вы автоматически вошли в аккаунт', 'success');
                 this.closeAuthModal();
-                await this.shop.productsModule.loadProducts();
+                await this.shop.productsModule.loadProducts(1, false);
                 
                 this.setupRegisterSteps();
                 this.updateRegisterStepDisplay();
@@ -1719,7 +1719,7 @@ export class AuthModule {
                     localStorage.setItem('user', JSON.stringify(data.user));
                     localStorage.setItem('token', data.token);
                     this.updateAuthUI();
-                    await this.shop.productsModule.loadProducts();
+                    await this.shop.productsModule.loadProducts(1, false);
                 } else {
                     setTimeout(() => {
                         this.openAuthModal();

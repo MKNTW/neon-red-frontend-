@@ -74,11 +74,10 @@ export class CartModule {
         this.renderCart();
         showToast('Товар удалён из корзины', 'info', 2000);
         
-        // Обновляем список товаров для отображения актуального количества
-        // (хотя количество не менялось, но обновление гарантирует актуальность данных)
+        // Обновляем список товаров для отображения актуального количества из БД
         if (this.shop.productsModule) {
-            // Обновляем без очистки кэша, т.к. количество не изменилось
-            this.shop.productsModule.loadProducts(1, true).catch(err => {
+            // Всегда загружаем из БД без кэша
+            this.shop.productsModule.loadProducts(1, false).catch(err => {
                 console.warn('Error refreshing products after cart removal:', err);
             });
         }
@@ -119,7 +118,7 @@ export class CartModule {
                     Добавьте товары в корзину, чтобы оформить заказ
                 </p>
                 <div class="empty-state-action">
-                    <button class="browse-products-btn" onclick="shop.closeCartModal(); shop.productsModule.loadProducts();">
+                    <button class="browse-products-btn" onclick="shop.closeCartModal(); shop.productsModule.loadProducts(1, false);">
                         Посмотреть товары
                     </button>
                 </div>
@@ -268,9 +267,10 @@ export class CartModule {
         this.renderCart();
         showToast('Корзина очищена', 'info');
         
-        // Обновляем список товаров для отображения актуального количества
+        // Обновляем список товаров для отображения актуального количества из БД
         if (this.shop.productsModule) {
-            this.shop.productsModule.loadProducts(1, true).catch(err => {
+            // Всегда загружаем из БД без кэша
+            this.shop.productsModule.loadProducts(1, false).catch(err => {
                 console.warn('Error refreshing products after cart clear:', err);
             });
         }

@@ -611,7 +611,8 @@
         }
         
         function loadProducts() {
-            if (shop) shop.loadProducts();
+            // Всегда загружаем товары из БД без кэша
+            if (shop) shop.loadProducts(1, false);
         }
         
         function showLoginForm() {
