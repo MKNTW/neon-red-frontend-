@@ -112,8 +112,6 @@ export function useApi() {
   }
 
   async function request(endpoint, options = {}, retryCount = 0) {
-
-  async function request(endpoint, options = {}, retryCount = 0) {
     const url = `${API_BASE_URL}${endpoint}`
     const token = localStorage.getItem('token')
     const maxRetries = options.maxRetries !== undefined ? options.maxRetries : 1

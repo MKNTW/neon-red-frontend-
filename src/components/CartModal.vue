@@ -81,18 +81,29 @@
           <button @click="clearCart" class="secondary-btn">
             Очистить
           </button>
-          <button @click="handleCheckout" class="primary-btn">
+          <button @click="openCheckoutDialog" class="primary-btn">
             Оформить заказ
           </button>
         </div>
       </div>
     </div>
+
+    <InputDialog
+      v-model="showAddressDialog"
+      title="Адрес доставки"
+      message="Введите адрес для доставки заказа"
+      label="Адрес доставки"
+      placeholder="Город, улица, дом, квартира"
+      confirm-text="Оформить заказ"
+      @confirm="handleAddressConfirm"
+    />
   </Modal>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import Modal from './Modal.vue'
+import InputDialog from './InputDialog.vue'
 import { useCart } from '../composables/useCart'
 import { useToast } from '../composables/useToast'
 
@@ -123,15 +134,24 @@ function formatPrice(price) {
   return parseFloat(price).toFixed(2)
 }
 
-async function handleCheckout() {
-  const address = prompt('Введите адрес доставки:')
+const showAddressDialog = ref(false)
+
+function openCheckoutDialog() {
+  showAddressDialog.value = true
+}
+
+function handleAddressConfirm(address) {
   if (!address || address.trim() === '') {
     showToast('Введите адрес доставки', 'error')
     return
   }
+  processCheckout(address.trim())
+}
 
-  const success = await checkout(address.trim())
+async function processCheckout(address) {
+  const success = await checkout(address)
   if (success) {
+    showAddressDialog.value = false
     emit('update:modelValue', false)
   }
 }

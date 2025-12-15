@@ -169,7 +169,7 @@ header {
 }
 
 .header-admin {
-  margin-bottom: 15px;
+  margin-bottom: 0;
 }
 </style>
 

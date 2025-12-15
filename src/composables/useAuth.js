@@ -6,8 +6,21 @@ export function useAuth() {
   const { request } = useApi()
   const { showToast } = useToast()
 
-  const user = ref(JSON.parse(localStorage.getItem('user')) || null)
-  const token = ref(localStorage.getItem('token') || null)
+  // Безопасная загрузка из localStorage
+  let initialUser = null
+  let initialToken = null
+  try {
+    const savedUser = localStorage.getItem('user')
+    if (savedUser) {
+      initialUser = JSON.parse(savedUser)
+    }
+    initialToken = localStorage.getItem('token')
+  } catch (e) {
+    // Игнорируем ошибки парсинга
+  }
+  
+  const user = ref(initialUser)
+  const token = ref(initialToken)
   const isAuthenticated = computed(() => !!user.value && !!token.value)
   const isAdmin = computed(() => user.value?.isAdmin || false)
 

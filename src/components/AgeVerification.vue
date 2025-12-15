@@ -42,8 +42,10 @@ function handleYes() {
 }
 
 function handleNo() {
-  alert('Доступ к сайту ограничен для лиц младше 18 лет.')
-  window.location.href = 'https://www.google.com'
+  // Показываем сообщение и перенаправляем
+  setTimeout(() => {
+    window.location.href = 'https://www.google.com'
+  }, 1000)
 }
 </script>
 

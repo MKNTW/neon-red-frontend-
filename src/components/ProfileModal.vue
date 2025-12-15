@@ -63,7 +63,7 @@
         />
         <div v-if="editingField === 'email'" class="email-change-note">
           <p>Для смены email используйте специальную форму с подтверждением через код.</p>
-          <button @click="cancelEdit" class="secondary-btn">Отмена</button>
+          <button @click="cancelEdit" class="profile-cancel-btn">Отмена</button>
         </div>
         
         <ProfileField
@@ -123,12 +123,22 @@
           <span>🚪</span>
           <span>Выйти из аккаунта</span>
         </button>
-        <button @click="handleDeleteAccount" class="profile-delete-btn">
+        <button @click="openDeleteConfirm" class="profile-delete-btn">
           <span>🗑️</span>
           <span>Удалить аккаунт</span>
         </button>
       </div>
     </div>
+
+    <ConfirmDialog
+      v-model="showDeleteConfirm"
+      title="Удаление аккаунта"
+      message="Вы уверены, что хотите удалить аккаунт? Это действие необратимо. Все ваши данные будут удалены."
+      icon="🗑️"
+      confirm-text="Удалить аккаунт"
+      cancel-text="Отмена"
+      @confirm="confirmDeleteAccount"
+    />
   </Modal>
 </template>
 
@@ -137,6 +147,7 @@ import { ref, onMounted, watch } from 'vue'
 import Modal from './Modal.vue'
 import ProfileField from './ProfileField.vue'
 import ProfileFieldEdit from './ProfileFieldEdit.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import { useAuth } from '../composables/useAuth'
 import { useApi } from '../composables/useApi'
 import { useToast } from '../composables/useToast'
@@ -150,7 +161,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const { user, logout, saveAuth } = useAuth()
+const { user, token, logout, saveAuth } = useAuth()
 const { request } = useApi()
 const { showToast } = useToast()
 
@@ -229,7 +240,7 @@ async function saveField(value, confirmValue) {
     })
     
     if (data.user) {
-      saveAuth(data.user, user.value?.token || '')
+      saveAuth(data.user, token.value || '')
       showToast('Профиль обновлен', 'success')
       cancelEdit()
     }
@@ -267,7 +278,7 @@ async function handleAvatarUpload(event) {
     })
     
     if (data.user) {
-      saveAuth(data.user, user.value?.token || '')
+      saveAuth(data.user, token.value || '')
       showToast('Аватар обновлен', 'success')
     }
   } catch (error) {
@@ -287,14 +298,17 @@ function handleLogout() {
   emit('update:modelValue', false)
 }
 
-async function handleDeleteAccount() {
-  if (!confirm('Вы уверены, что хотите удалить аккаунт? Это действие необратимо.')) {
-    return
-  }
+const showDeleteConfirm = ref(false)
 
+function openDeleteConfirm() {
+  showDeleteConfirm.value = true
+}
+
+async function confirmDeleteAccount() {
   try {
     await request('/profile', { method: 'DELETE' })
     showToast('Аккаунт удалён', 'success')
+    showDeleteConfirm.value = false
     logout()
     emit('update:modelValue', false)
   } catch (error) {
@@ -483,6 +497,39 @@ async function handleDeleteAccount() {
 
 .profile-delete-btn:hover {
   background: rgba(255, 0, 51, 0.2);
+  box-shadow: 0 0 15px rgba(255, 0, 51, 0.3);
+}
+
+.email-change-note {
+  padding: 15px;
+  background: rgba(0, 153, 255, 0.1);
+  border: 2px solid var(--neon-blue);
+  border-radius: 10px;
+  margin-top: 10px;
+  margin-bottom: 15px;
+}
+
+.email-change-note p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.profile-cancel-btn {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-family: inherit;
+}
+
+.profile-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--neon-red);
 }
 </style>
 

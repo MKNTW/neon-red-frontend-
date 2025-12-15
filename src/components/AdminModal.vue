@@ -24,7 +24,7 @@
       <div v-if="activeTab === 'products'" class="admin-section">
         <div class="admin-section-header">
           <h3>Управление товарами</h3>
-          <button @click="openEditModal(null)" class="admin-btn add-btn">
+          <button @click="openEditModal(null)" class="admin-btn">
             <span>+</span>
             <span class="btn-text">Добавить товар</span>
           </button>
@@ -51,7 +51,7 @@
                 <button @click="openEditModal(product)" class="admin-btn">
                   Редактировать
                 </button>
-                <button @click="deleteProduct(product.id)" class="admin-btn delete-btn">
+                <button @click="openDeleteConfirm(product.id)" class="admin-btn delete-btn">
                   Удалить
                 </button>
               </div>
@@ -64,6 +64,16 @@
         v-model="showEditModal"
         :product="editingProduct"
         @saved="handleProductSaved"
+      />
+
+      <ConfirmDialog
+        v-model="showDeleteConfirm"
+        title="Удаление товара"
+        message="Вы уверены, что хотите удалить этот товар? Это действие необратимо."
+        icon="🗑️"
+        confirm-text="Удалить"
+        cancel-text="Отмена"
+        @confirm="confirmDelete"
       />
       
       <div v-if="activeTab === 'users'" class="admin-section">
@@ -91,6 +101,7 @@
 import { ref, onMounted, watch } from 'vue'
 import Modal from './Modal.vue'
 import ProductEditModal from './ProductEditModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import { useApi } from '../composables/useApi'
 import { useToast } from '../composables/useToast'
 
@@ -146,14 +157,22 @@ function openEditModal(product) {
   showEditModal.value = true
 }
 
-async function deleteProduct(productId) {
-  if (!confirm('Вы уверены, что хотите удалить этот товар?')) {
-    return
-  }
+const showDeleteConfirm = ref(false)
+const productToDelete = ref(null)
+
+function openDeleteConfirm(productId) {
+  productToDelete.value = productId
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  if (!productToDelete.value) return
   
   try {
-    await request(`/admin/products/${productId}`, { method: 'DELETE' })
+    await request(`/admin/products/${productToDelete.value}`, { method: 'DELETE' })
     showToast('Товар удален', 'success')
+    showDeleteConfirm.value = false
+    productToDelete.value = null
     await loadProducts()
   } catch (error) {
     showToast(error.message || 'Ошибка удаления товара', 'error')

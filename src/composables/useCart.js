@@ -13,7 +13,12 @@ export function useCart() {
 
   // Используем singleton pattern для избежания множественных экземпляров
   if (!cartInstance) {
-    cartInstance = ref(JSON.parse(localStorage.getItem('cart')) || [])
+    try {
+      const savedCart = localStorage.getItem('cart')
+      cartInstance = ref(savedCart ? JSON.parse(savedCart) : [])
+    } catch (e) {
+      cartInstance = ref([])
+    }
   }
   
   const cart = cartInstance

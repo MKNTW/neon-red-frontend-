@@ -243,8 +243,9 @@ async function handleSubmit() {
     
     emit('saved')
     emit('update:modelValue', false)
-  } catch (error) {
-    error.value = error.message || 'Ошибка сохранения товара'
+  } catch (err) {
+    error.value = err.message || 'Ошибка сохранения товара'
+    showToast(err.message || 'Ошибка сохранения товара', 'error')
   } finally {
     loading.value = false
   }
@@ -388,14 +389,6 @@ async function handleSubmit() {
 .admin-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.email-change-note {
-  padding: 15px;
-  background: rgba(0, 153, 255, 0.1);
-  border: 2px solid var(--neon-blue);
-  border-radius: 10px;
-  margin-top: 10px;
 }
 
 .email-change-note p {

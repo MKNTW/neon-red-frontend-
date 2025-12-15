@@ -70,3 +70,104 @@ body {
     border-width: 0;
 }
 
+/* Единые стили для кнопок */
+.primary-btn,
+.auth-btn.primary-btn,
+.admin-btn:not(.delete-btn):not(.secondary-btn) {
+    background: var(--neon-red);
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: inherit;
+}
+
+.primary-btn:hover:not(:disabled),
+.auth-btn.primary-btn:hover:not(:disabled),
+.admin-btn:hover:not(:disabled):not(.delete-btn) {
+    background: var(--neon-pink);
+    box-shadow: 0 0 20px rgba(255, 0, 51, 0.5);
+    transform: translateY(-2px);
+}
+
+.primary-btn:disabled,
+.auth-btn.primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.secondary-btn,
+.auth-btn.secondary-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: inherit;
+}
+
+.secondary-btn:hover:not(:disabled),
+.auth-btn.secondary-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--neon-red);
+    box-shadow: 0 0 15px rgba(255, 0, 51, 0.3);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 12px;
+    }
+    
+    header {
+        padding: 15px 0;
+    }
+    
+    .header-top-new {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .header-controls {
+        flex-wrap: wrap;
+    }
+    
+    .header-btn {
+        padding: 8px 14px;
+        font-size: 0.9rem;
+    }
+    
+    .products {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+    }
+    
+    .modal-content {
+        padding: 20px;
+        max-width: 95%;
+    }
+}
+
+@media (max-width: 480px) {
+    .products {
+        grid-template-columns: 1fr;
+    }
+    
+    .header-btn .btn-text {
+        display: none;
+    }
+    
+    .logo-animated {
+        font-size: 1.5rem;
+    }
+}
+

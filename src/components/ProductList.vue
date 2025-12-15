@@ -23,9 +23,6 @@
           <button @click="$emit('open-auth')" class="primary-btn">
             Войти
           </button>
-          <button @click="$emit('open-auth')" class="secondary-btn">
-            Зарегистрироваться
-          </button>
         </div>
       </div>
     </div>
