@@ -759,10 +759,20 @@
         window.openCartModal = openCartModal;
         window.closeCartModal = closeCartModal;
         window.openAdminPanel = openAdminPanel;
+        window.closeAdminPanel = closeAdminPanel;
         window.loadProducts = loadProducts;
         window.showLoginForm = showLoginForm;
         window.showRegisterForm = showRegisterForm;
         window.switchAdminTab = switchAdminTab;
+        
+        // Функции восстановления пароля
+        window.verifyPasswordForReset = () => shop.authModule.verifyPasswordForReset();
+        window.backToForgotPassword = () => shop.authModule.backToForgotPassword();
+        window.backToVerifyPassword = () => shop.authModule.backToVerifyPassword();
+        window.backToSelectAccount = () => shop.authModule.backToSelectAccount();
+        window.resendResetCode = () => shop.authModule.resendResetCode();
+        window.verifyResetCode = () => shop.authModule.verifyResetCode();
+        window.confirmPasswordReset = () => shop.authModule.confirmPasswordReset();
     </script>
 </body>
 </html>

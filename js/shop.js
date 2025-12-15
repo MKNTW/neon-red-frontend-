@@ -264,6 +264,26 @@ export class NeonShop {
         return this.authModule.resendResetCode();
     }
 
+    async verifyPasswordForReset() {
+        return this.authModule.verifyPasswordForReset();
+    }
+
+    async verifyResetCode() {
+        return this.authModule.verifyResetCode();
+    }
+
+    backToForgotPassword() {
+        return this.authModule.backToForgotPassword();
+    }
+
+    backToVerifyPassword() {
+        return this.authModule.backToVerifyPassword();
+    }
+
+    backToSelectAccount() {
+        return this.authModule.backToSelectAccount();
+    }
+
     // Делегируем функции профиля
     async saveProfileField(field) {
         const input = document.getElementById(`edit-${field}-input`);
@@ -470,13 +490,13 @@ export class NeonShop {
             
             // Форма восстановления пароля - проверка пароля
             if (target.id === 'verify-password') {
-                this.verifyPasswordForReset();
+                this.authModule.verifyPasswordForReset();
                 return;
             }
             
             // Форма восстановления пароля - код
             if (target.id === 'reset-code') {
-                this.verifyResetCode();
+                this.authModule.verifyResetCode();
                 return;
             }
             

@@ -493,12 +493,24 @@ export class AdminModule {
                 })
             });
             
+            if (!productResponse || !productResponse.ok) {
+                let errorMsg = 'Ошибка создания товара';
+                try {
+                    const errorData = await productResponse.json();
+                    errorMsg = errorData.error || errorData.message || errorMsg;
+                } catch (e) {
+                    // Игнорируем ошибку парсинга
+                }
+                throw new Error(errorMsg);
+            }
+            
             await productResponse.json();
             showToast('Товар создан', 'success');
 
             this.closeAddProductModal();
             await this.loadAdminProducts();
-            await this.shop.productsModule.loadProducts();
+            // Обновляем список товаров с первой страницы без кэша
+            await this.shop.productsModule.loadProducts(1, false);
         } catch (error) {
             showToast(error.message, 'error');
         }
