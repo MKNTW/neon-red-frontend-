@@ -107,8 +107,6 @@ onUnmounted(() => {
   background: var(--card-bg);
   border: 3px solid var(--neon-red);
   border-radius: 16px;
-  padding: 30px;
-  max-width: 500px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
@@ -118,8 +116,6 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .modal-content {
-    padding: 20px;
-    max-width: 95%;
     border-radius: 12px;
   }
 }
