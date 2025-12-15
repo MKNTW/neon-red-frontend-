@@ -3,12 +3,6 @@
 /* Подключение шрифта - должно быть в начале файла */
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800;900&display=swap');
 
-/* Preload критических ресурсов */
-@font-face {
-    font-family: 'Exo 2';
-    font-display: swap;
-}
-
 * { 
     margin: 0; 
     padding: 0; 
@@ -942,6 +936,8 @@ button:focus-visible {
     flex-direction: column;
     will-change: transform;
     touch-action: manipulation;
+    animation: productStagger 0.5s cubic-bezier(0.23, 1, 0.32, 1) both;
+    opacity: 0;
 }
 
 .product::before {
@@ -1014,6 +1010,10 @@ button:focus-visible {
 
 .product:hover .product-image-img { 
     transform: scale(1.05); 
+}
+
+.product-image-img {
+    object-fit: cover;
 }
 
 .product-info {
@@ -1160,6 +1160,103 @@ button:focus-visible {
     to { opacity: 1; }
 }
 
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes checkmark {
+    0% {
+        transform: scale(0) rotate(45deg);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2) rotate(45deg);
+    }
+    100% {
+        transform: scale(1) rotate(45deg);
+        opacity: 1;
+    }
+}
+
+@keyframes productStagger {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes addToCart {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Анимация checkmark для успешных действий */
+.toast-icon {
+    animation: checkmark 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.toast-success .toast-icon {
+    animation: checkmark 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Анимация добавления в корзину */
+.cart-badge {
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.cart-badge.animate {
+    animation: addToCart 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
 .modal[aria-hidden="false"] {
     display: block;
 }
@@ -1175,7 +1272,7 @@ button:focus-visible {
     box-shadow: 0 0 50px rgba(255, 0, 51, 0.3);
     max-height: calc(100vh - 40px);
     position: relative;
-    animation: slideUp 0.4s ease;
+    animation: slideInUp 0.3s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Модалки редактирования/добавления товара - один скролл как в профиле */
@@ -3419,6 +3516,43 @@ input, textarea, [contenteditable] {
     .product:hover,
     .product:active {
         transform: translateY(-5px) scale(1.01);
+    }
+    
+    /* Улучшенные touch targets для мобильных */
+    button, .auth-btn, .primary-btn, .secondary-btn {
+        min-height: 44px;
+        min-width: 44px;
+        touch-action: manipulation;
+    }
+    
+    /* Pull-to-refresh индикатор */
+    @keyframes pullToRefresh {
+        0% {
+            transform: translateY(-100%);
+            opacity: 0;
+        }
+        100% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    .pull-to-refresh-indicator {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--neon-red);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 0 0 12px 12px;
+        z-index: 10000;
+        display: none;
+        animation: pullToRefresh 0.3s ease;
+    }
+    
+    .pull-to-refresh-indicator.active {
+        display: block;
     }
     
     /* Улучшенные модальные окна */

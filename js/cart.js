@@ -29,7 +29,17 @@ export class CartModule {
 
         this.saveCart();
         this.updateCartInfo();
+        
+        // Анимация badge корзины
+        const badge = document.getElementById('cart-badge');
+        if (badge) {
+            badge.classList.add('animate');
+            setTimeout(() => {
+                badge.classList.remove('animate');
+            }, 500);
+        }
 
+        // Вибрация на мобильных
         if ('vibrate' in navigator) {
             navigator.vibrate([50, 30, 50]);
         }

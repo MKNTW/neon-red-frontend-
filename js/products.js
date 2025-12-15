@@ -212,6 +212,7 @@ export class ProductsModule {
             div.className = 'product';
             div.setAttribute('role', 'listitem');
             div.style.animationDelay = `${index * 0.05}s`;
+            div.style.animationFillMode = 'both';
 
             const productImageContainer = document.createElement('div');
             productImageContainer.className = 'product-image-container';
